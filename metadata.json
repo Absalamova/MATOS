@@ -1,0 +1,8 @@
+{
+  "name": "Matos",
+  "description": "Bespoke international textile boutique with interactive 3D mannequin drape simulator, precision zero-waste pattern calculator, and world-standard natural fabric collections.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
