@@ -1,25 +1,20 @@
+import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
 import { defineConfig } from 'vite';
 
-export default defineConfig(() => {
-  return {
-    // Relative base: the same build works on matos.uz and on username.github.io/MATOS/
-    base: './',
-    plugins: [react(), tailwindcss()],
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
-      },
-    },
-    build: {
-      chunkSizeWarningLimit: 900,
-    },
-    server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      hmr: process.env.DISABLE_HMR !== 'true',
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
-    },
-  };
+/** Store (matos.uz). The admin app has its own config in admin/vite.config.ts. */
+export default defineConfig({
+  // Relative base: the same build works on matos.uz and on username.github.io/MATOS/
+  base: './',
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: { '@': fileURLToPath(new URL('.', import.meta.url)) },
+  },
+  build: {
+    outDir: 'dist',
+    chunkSizeWarningLimit: 900,
+  },
+  server: { port: 5173 },
+  preview: { port: 4173 },
 });

@@ -18,7 +18,7 @@ export function formatNumber(n: number, lang: Language, digits = 0) {
   return new Intl.NumberFormat(decimal(lang), { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
 }
 
-/** Price of one metre in the chosen currency (admin overrides already applied to the fabric). */
+/** Price of one metre in the chosen currency (USD/EUR prices come from the server’s exchange rates). */
 export const pricePerMeter = (f: Pick<Fabric, 'priceUZS' | 'priceUSD' | 'priceEUR'>, c: Currency) =>
   c === 'UZS' ? f.priceUZS : c === 'USD' ? f.priceUSD : f.priceEUR;
 
@@ -55,18 +55,4 @@ export function formatDate(iso: string, lang: Language) {
   return d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-/** Keeps Uzbek phone numbers readable while typing: +998 90 123 45 67 */
-export function formatPhone(raw: string) {
-  const digits = raw.replace(/\D/g, '');
-  if (!digits) return raw.trim().startsWith('+') ? '+' : '';
-  const withCode = raw.trim().startsWith('+') || digits.length > 9;
-  let d = withCode && digits.startsWith('998') ? digits.slice(3) : digits;
-  d = d.slice(0, 9);
-  const parts = [d.slice(0, 2), d.slice(2, 5), d.slice(5, 7), d.slice(7, 9)].filter(Boolean);
-  return `+998 ${parts.join(' ')}`.trimEnd();
-}
-
-export const isValidPhone = (raw: string) => {
-  const d = raw.replace(/\D/g, '');
-  return d.length === 12 && d.startsWith('998');
-};
+export { displayPhone, formatPhoneInput as formatPhone, isValidPhone, normalizePhone, telHref } from '../../shared/phone';

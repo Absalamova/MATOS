@@ -1,0 +1,33 @@
+# One VPS, automatic HTTPS (Caddy). From the repository root:
+#   npm run build:admin                         # admin/dist
+#   cp .env.example server/.env && nano server/.env
+#   docker compose -f deploy/docker-compose.yml up -d --build
+services:
+  api:
+    build: ..
+    restart: unless-stopped
+    env_file: ../server/.env
+    environment:
+      HOST: 0.0.0.0
+      DATA_DIR: /data
+      TRUST_PROXY: '1'
+    volumes:
+      - matos-data:/data
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [api]
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../admin/dist:/srv/admin:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  matos-data:
+  caddy-data:
+  caddy-config:

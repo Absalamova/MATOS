@@ -211,7 +211,7 @@ const thumbCache = new Map<string, string>();
 
 /** Data-URL swatch for colourways that have no photo (silk, merino, twill …). */
 export function weaveThumb(fabric: Fabric, color: ColorOption, size = 320) {
-  const key = `${fabric.id}:${color.id}:${size}`;
+  const key = `${fabric.pattern}:${color.hex}:${color.id}:${size}`;
   let url = thumbCache.get(key);
   if (!url) {
     const { color: c } = drawWeave(fabric.pattern, color.hex, size, color.id.length * 97 + 3);

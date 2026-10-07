@@ -1,59 +1,58 @@
 import React, { useState } from 'react';
 import { useApp } from '../state/app';
 import { L, UI } from '../lib/i18n';
-import { KEYS, load } from '../lib/storage';
-import { DEFAULT_MEASUREMENTS, sizeFor } from '../lib/measure';
+import { formatPhone, isValidPhone, normalizePhone } from '../lib/format';
+import { ApiError, errorText, login, register } from '../lib/api';
 import { Dialog } from './ui/Dialog';
-import { User } from '../types';
 
-const norm = (s: string) => {
-  const d = s.replace(/\D/g, '');
-  return s.includes('@') ? s.trim().toLowerCase() : d.length >= 9 ? d.slice(-9) : s.trim().toLowerCase();
-};
+type Tab = 'login' | 'register';
 
 export function AuthModal() {
-  const { t, overlay, close, setUser, notify, measurements } = useApp();
-  const [tab, setTab] = useState<'login' | 'register'>('login');
-  const [id, setId] = useState('');
+  const { t, overlay, close, signIn, notify, measurements } = useApp();
+  const [tab, setTab] = useState<Tab>('login');
+  const [phone, setPhone] = useState('+998 ');
   const [pw, setPw] = useState('');
   const [name, setName] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  const switchTab = (next: 'login' | 'register') => {
+  const switchTab = (next: Tab) => {
     setTab(next);
     setError('');
+    setErrors({});
   };
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy) return;
     setError('');
-    const users = load<User[]>(KEYS.users, []);
-    if (tab === 'login') {
-      const u = users.find((x) => norm(x.identifier) === norm(id) && x.password === pw);
-      if (!u) return setError(t(L('Telefon/email yoki parol noto‘g‘ri.', 'Неверный телефон/email или пароль.', 'Wrong phone/email or password.')));
-      setUser(u);
+    const err: Record<string, string> = {};
+    if (tab === 'register' && name.trim().length < 2) err.name = t(L('Ismingizni yozing', 'Укажите имя', 'Enter your name'));
+    if (!isValidPhone(phone)) err.phone = t(L('Raqamni +998 XX XXX XX XX ko‘rinishida yozing', 'Формат: +998 XX XXX XX XX', 'Use +998 XX XXX XX XX'));
+    if (tab === 'register' ? pw.length < 6 : !pw) err.password = tab === 'register' ? t(L('Kamida 6 ta belgi', 'Минимум 6 символов', 'At least 6 characters')) : t(L('Parolni yozing', 'Введите пароль', 'Enter your password'));
+    setErrors(err);
+    if (Object.keys(err).length) return;
+    setBusy(true);
+    try {
+      const p = normalizePhone(phone)!;
+      const res = tab === 'login' ? await login(p, pw) : await register({ name: name.trim(), phone: p, password: pw, measurements });
+      signIn(res);
+      setPw('');
       close();
-      notify(t(L(`Xush kelibsiz, ${u.name.split(' ')[0]}`, `Добро пожаловать, ${u.name.split(' ')[0]}`, `Welcome back, ${u.name.split(' ')[0]}`)));
-      return;
+      const first = res.user.name.split(' ')[0];
+      notify(tab === 'login' ? t(L(`Xush kelibsiz, ${first}`, `Добро пожаловать, ${first}`, `Welcome back, ${first}`)) : t(L('Profil yaratildi', 'Профиль создан', 'Account created')));
+    } catch (ex) {
+      if (ex instanceof ApiError && ex.code === 'validation' && ex.fields) {
+        setErrors({ name: ex.fields.name ?? '', phone: ex.fields.phone ?? '', password: ex.fields.password ?? '' });
+      }
+      setError(errorText(ex, t));
+    } finally {
+      setBusy(false);
     }
-    if (name.trim().length < 2) return setError(t(L('Ismingizni yozing.', 'Укажите имя.', 'Enter your name.')));
-    if (!/@/.test(id) && id.replace(/\D/g, '').length < 9) return setError(t(L('Telefon raqami yoki email kiriting.', 'Укажите телефон или email.', 'Enter a phone number or email.')));
-    if (pw.length < 6) return setError(t(L('Parol kamida 6 belgidan iborat bo‘lsin.', 'Пароль — минимум 6 символов.', 'Use at least 6 characters for the password.')));
-    if (users.some((x) => norm(x.identifier) === norm(id))) return setError(t(L('Bu raqam yoki email bilan profil bor. Kirish bo‘limidan foydalaning.', 'Профиль с этим телефоном или email уже есть. Войдите.', 'An account with this phone or email exists. Sign in instead.')));
-    const m = measurements ?? DEFAULT_MEASUREMENTS;
-    const s = sizeFor(m);
-    const u: User = {
-      id: `user-${Date.now()}`,
-      name: name.trim(),
-      identifier: id.trim(),
-      password: pw,
-      registeredAt: new Date().toISOString(),
-      measurements: { heightCm: m.heightCm, chestCm: m.bustCm, waistCm: m.waistCm, hipsCm: m.hipsCm, sizeINT: s.INT, sizeEU: s.EU, sizeUS: s.US, sizeUK: s.UK },
-    };
-    setUser(u);
-    close();
-    notify(t(L('Profil yaratildi', 'Профиль создан', 'Account created')));
   };
+
+  const fieldError = (k: string) => (errors[k] ? <span className="mt-1 block text-[13px] text-danger">{errors[k]}</span> : null);
 
   return (
     <Dialog open={overlay === 'auth'} onClose={close} title={tab === 'login' ? t(UI.signIn) : t(L('Ro‘yxatdan o‘tish', 'Регистрация', 'Create account'))} size="sm" closeLabel={t(UI.close)}>
@@ -68,27 +67,43 @@ export function AuthModal() {
         <form onSubmit={submit} className="space-y-4" noValidate>
           {tab === 'register' && (
             <label className="block">
-              <span className="label">{t(L('Ism', 'Имя', 'Name'))}</span>
-              <input className="field" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" data-autofocus />
+              <span className="label">{t(L('Ism va familiya', 'Имя и фамилия', 'Full name'))}</span>
+              <input className="field" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" aria-invalid={!!errors.name} data-autofocus />
+              {fieldError('name')}
             </label>
           )}
           <label className="block">
-            <span className="label">{t(L('Telefon yoki email', 'Телефон или email', 'Phone or email'))}</span>
-            <input className="field" value={id} onChange={(e) => setId(e.target.value)} autoComplete="username" inputMode="email" placeholder="+998 90 123 45 67" {...(tab === 'login' ? { 'data-autofocus': true } : {})} />
+            <span className="label">{t(L('Telefon raqami', 'Номер телефона', 'Phone number'))}</span>
+            <input
+              className="field tabular"
+              type="tel"
+              inputMode="tel"
+              value={phone}
+              onChange={(e) => setPhone(formatPhone(e.target.value))}
+              autoComplete="tel"
+              aria-invalid={!!errors.phone}
+              {...(tab === 'login' ? { 'data-autofocus': true } : {})}
+            />
+            {fieldError('phone')}
           </label>
           <label className="block">
             <span className="label">{t(L('Parol', 'Пароль', 'Password'))}</span>
-            <input className="field" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete={tab === 'login' ? 'current-password' : 'new-password'} />
+            <input className="field" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete={tab === 'login' ? 'current-password' : 'new-password'} aria-invalid={!!errors.password} />
+            {fieldError('password')}
           </label>
-          {error && <p className="text-[13.5px] text-danger" role="alert">{error}</p>}
-          <button type="submit" className="btn btn-primary w-full">
-            {tab === 'login' ? t(UI.signIn) : t(L('Profil yaratish', 'Создать профиль', 'Create account'))}
-          </button>
-          {tab === 'login' && (
-            <p className="text-[13px] text-muted">
-              {t(L('Sinov uchun: +998 90 123 45 67, parol 123', 'Для проверки: +998 90 123 45 67, пароль 123', 'Demo login: +998 90 123 45 67, password 123'))}
+          {error && (
+            <p className="text-[13.5px] text-danger" role="alert">
+              {error}
             </p>
           )}
+          <button type="submit" className="btn btn-primary w-full" disabled={busy}>
+            {busy ? t(L('Kuting…', 'Подождите…', 'Please wait…')) : tab === 'login' ? t(UI.signIn) : t(L('Profil yaratish', 'Создать профиль', 'Create account'))}
+          </button>
+          <p className="text-[13px] text-muted">
+            {tab === 'login'
+              ? t(L('Profilda buyurtmalaringiz va o‘lchamlaringiz saqlanadi.', 'В профиле хранятся ваши заказы и мерки.', 'Your orders and measurements are kept in your account.'))
+              : t(L('Ro‘yxatdan o‘tish orqali buyurtmalaringizni kuzatib borasiz. Raqamingiz faqat buyurtma bo‘yicha aloqa uchun ishlatiladi.', 'Зарегистрировавшись, вы сможете следить за заказами. Номер используется только для связи по заказу.', 'With an account you can track your orders. We only use your number to contact you about orders.'))}
+          </p>
         </form>
       </div>
     </Dialog>

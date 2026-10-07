@@ -1,0 +1,292 @@
+@import 'tailwindcss' source(none);
+@source "./";
+
+/*
+  Same tokens as the store (src/index.css) so the two feel like one product,
+  tuned denser for daily work: 14px body, tighter controls.
+*/
+@theme {
+  --font-sans: 'Golos Text', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Tenor Sans', 'Golos Text', ui-sans-serif, sans-serif;
+
+  --color-paper: #ffffff;
+  --color-mist: #f6f5f2;
+  --color-well: #efeeea;
+  --color-line: #e4e2dd;
+  --color-ink: #191b20;
+  --color-ink-soft: #2c2f36;
+  --color-graphite: #5b5e66;
+  --color-muted: #8a8c92;
+  --color-tape: #edc233;
+  --color-tape-deep: #c99c12;
+  --color-tape-soft: #fbf3d6;
+  --color-ok: #2e6b4a;
+  --color-ok-soft: #e4f2e8;
+  --color-info: #2f4e80;
+  --color-info-soft: #e8eef8;
+  --color-plum: #5d3f8c;
+  --color-plum-soft: #f0eaf8;
+  --color-danger: #b3261e;
+  --color-danger-soft: #f8e6e4;
+
+  --animate-fade: fade 0.2s ease-out both;
+  --animate-slide-in: slide-in 0.25s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes slide-in {
+    from {
+      transform: translateX(28px);
+      opacity: 0;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--color-mist);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    line-height: 1.12;
+  }
+  h3 {
+    font-weight: 600;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  button,
+  [role='button'],
+  label[for] {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+  ::selection {
+    background: var(--color-tape);
+    color: var(--color-ink);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    height: 38px;
+    padding-inline: 0.95rem;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    font-size: 13.5px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    transition:
+      background-color 0.15s,
+      border-color 0.15s,
+      color 0.15s;
+    user-select: none;
+  }
+  .btn-sm {
+    height: 32px;
+    padding-inline: 0.7rem;
+    font-size: 13px;
+    border-radius: 8px;
+  }
+  .btn-primary {
+    background: var(--color-ink);
+    color: #fff;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--color-ink-soft);
+  }
+  .btn-primary:disabled {
+    background: var(--color-muted);
+  }
+  .btn-secondary {
+    background: #fff;
+    color: var(--color-ink);
+    border-color: var(--color-line);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    border-color: var(--color-ink);
+  }
+  .btn-secondary:disabled {
+    color: var(--color-muted);
+  }
+  .btn-danger {
+    background: #fff;
+    color: var(--color-danger);
+    border-color: #ebc9c5;
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: var(--color-danger-soft);
+  }
+  .btn-ghost {
+    color: var(--color-graphite);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: var(--color-well);
+    color: var(--color-ink);
+  }
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    color: var(--color-graphite);
+    transition: background-color 0.15s;
+  }
+  .icon-btn:hover {
+    background: var(--color-well);
+    color: var(--color-ink);
+  }
+
+  .field {
+    width: 100%;
+    height: 40px;
+    border-radius: 9px;
+    border: 1px solid var(--color-line);
+    background: #fff;
+    padding-inline: 12px;
+    font-size: 14px;
+    color: var(--color-ink);
+    transition:
+      border-color 0.15s,
+      box-shadow 0.15s;
+  }
+  textarea.field {
+    height: auto;
+    padding-block: 9px;
+    resize: vertical;
+    line-height: 1.5;
+  }
+  select.field {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%23191b20' stroke-width='1.6'%3E%3Cpath d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 34px;
+  }
+  .field:hover {
+    border-color: #c9c6bf;
+  }
+  .field:focus {
+    outline: none;
+    border-color: var(--color-ink);
+    box-shadow: 0 0 0 3px rgba(25, 27, 32, 0.08);
+  }
+  .field[aria-invalid='true'] {
+    border-color: var(--color-danger);
+  }
+  .field:disabled {
+    background: var(--color-mist);
+    color: var(--color-muted);
+  }
+  .label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--color-graphite);
+    margin-bottom: 5px;
+  }
+
+  .card {
+    background: #fff;
+    border: 1px solid var(--color-line);
+    border-radius: 12px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    height: 32px;
+    padding-inline: 0.8rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-line);
+    background: #fff;
+    font-size: 13px;
+    color: var(--color-ink);
+    white-space: nowrap;
+    transition:
+      background-color 0.15s,
+      border-color 0.15s;
+  }
+  .chip:hover {
+    border-color: var(--color-ink);
+  }
+  .chip[aria-pressed='true'] {
+    background: var(--color-ink);
+    border-color: var(--color-ink);
+    color: #fff;
+  }
+  .chip .count {
+    font-size: 11.5px;
+    min-width: 18px;
+    padding-inline: 5px;
+    border-radius: 999px;
+    background: var(--color-well);
+    color: var(--color-graphite);
+    text-align: center;
+  }
+  .chip[aria-pressed='true'] .count {
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+  }
+
+  /* Rows that wait for someone: a strip of tailor's tape on the left edge. */
+  .needs-action {
+    box-shadow: inset 3px 0 0 var(--color-tape);
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .thin-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: #d6d3cc transparent;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}

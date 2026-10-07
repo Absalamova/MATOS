@@ -1,42 +1,45 @@
 {
   "name": "matos",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
-  "description": "MATOS — fashion-tech platforma: mato katalogi, 3D drape studiya, kamera orqali qidiruv, Smart Swatch, tikuvchilar va admin panel.",
+  "description": "MATOS — mato do‘koni (sayt), sotuvchi paneli (admin) va API server: katalog, bepul namunalar, rasm orqali qidiruv, 3D kiyib ko‘rish, tikuvchilar.",
+  "engines": {
+    "node": ">=22.18"
+  },
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.mjs",
+    "dev:store": "vite",
+    "dev:admin": "vite --config admin/vite.config.ts",
+    "dev:api": "node scripts/api.mjs --watch",
     "build": "vite build",
-    "start": "vite preview",
-    "lint": "tsc --noEmit",
+    "build:admin": "vite build --config admin/vite.config.ts",
+    "build:all": "vite build && vite build --config admin/vite.config.ts",
+    "preview": "vite preview",
+    "preview:admin": "vite preview --config admin/vite.config.ts",
+    "start:api": "node scripts/api.mjs",
+    "test": "node scripts/api.mjs --test",
+    "lint": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p admin/tsconfig.json && tsc --noEmit -p server/tsconfig.json",
+    "admin:create": "node scripts/api.mjs --cli create-admin",
+    "admin:password": "node scripts/api.mjs --cli reset-password",
+    "db:backup": "node scripts/api.mjs --cli backup",
     "sync:fabrics": "node scripts/sync-fabric-store.mjs"
   },
   "dependencies": {
-    "@google/genai": "^2.4.0",
-    "@tailwindcss/vite": "^4.3.3",
-    "@vitejs/plugin-react": "^6.1.1",
-    "canvas-confetti": "^1.9.4",
-    "dotenv": "^17.2.3",
-    "express": "^4.21.2",
     "lucide-react": "^0.546.0",
-    "motion": "^12.23.24",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
-    "react-router-dom": "^7.9.0",
-    "three": "^0.186.1",
-    "vite": "^8.3.0"
+    "three": "^0.186.1"
   },
   "devDependencies": {
-    "@types/canvas-confetti": "^1.9.0",
-    "@types/express": "^4.17.21",
+    "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.0.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/three": "^0.186.0",
-    "autoprefixer": "^10.4.21",
-    "esbuild": "^0.28.0",
+    "@vitejs/plugin-react": "^6.1.1",
     "tailwindcss": "^4.3.3",
-    "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vite": "^8.3.0"
   }
 }

@@ -75,6 +75,8 @@ function toTexture(c: HTMLCanvasElement, srgb: boolean) {
 function loadImage(url: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image();
+    // Uploaded photos live on the API domain; CORS lets us read their pixels for the 3D texture.
+    img.crossOrigin = 'anonymous';
     img.decoding = 'async';
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error(`image ${url}`));
@@ -128,10 +130,10 @@ function proceduralMaps(fabric: Fabric, color: ColorOption): FabricMaps {
 }
 
 export function fabricMaps(fabric: Fabric, color: ColorOption): Promise<FabricMaps> {
-  const key = `${fabric.id}:${color.id}`;
+  const tile = color.photos?.tile;
+  const key = `${fabric.id}:${color.id}:${color.hex}:${fabric.pattern}:${tile ?? ''}`;
   let p = cache.get(key);
   if (!p) {
-    const tile = color.photos?.tile;
     p = tile ? photoMaps(tile, color.hex).catch(() => proceduralMaps(fabric, color)) : Promise.resolve(proceduralMaps(fabric, color));
     cache.set(key, p);
   }

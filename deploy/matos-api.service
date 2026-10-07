@@ -1,0 +1,28 @@
+# /etc/systemd/system/matos-api.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now matos-api
+#   jurnal: journalctl -u matos-api -f
+[Unit]
+Description=MATOS API
+After=network.target
+
+[Service]
+Type=simple
+User=matos
+Group=matos
+WorkingDirectory=/opt/matos
+# Sozlamalar: /opt/matos/server/.env (namuna: .env.example)
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning server/src/index.ts
+Restart=always
+RestartSec=3
+TimeoutStopSec=15
+
+# Himoya: faqat ma’lumotlar papkasiga yozish mumkin
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/matos/server/data
+
+[Install]
+WantedBy=multi-user.target

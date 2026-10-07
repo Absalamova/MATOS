@@ -7,7 +7,6 @@ import { formatLength, formatMoney, formatNumber, pricePerMeter, pricePerUnit } 
 import { requiredMeters, suitability } from '../lib/measure';
 import { GARMENTS } from '../data/garments';
 import { findColor } from '../data/fabrics';
-import { loadTailors } from '../lib/tailors';
 import { specialtyFor } from '../data/tailors';
 import { ColorChip, FabricImage } from '../components/ui/FabricImage';
 import { TapeMeasure } from '../components/ui/TapeMeasure';
@@ -23,7 +22,7 @@ const VIEWS: { id: keyof FabricPhotos; label: ReturnType<typeof L> }[] = [
 
 export function ProductPage({ route }: { route: Route }) {
   const app = useApp();
-  const { t, lang, currency, unit, fabricById, addToCart, hasSample, toggleSample, measurements } = app;
+  const { t, lang, currency, unit, fabricById, addToCart, hasSample, toggleSample, measurements, tailors: allTailors, catalogStatus } = app;
   const fabric = fabricById(route.id ?? '');
   const [colorId, setColorId] = useState(route.query.get('color') ?? undefined);
   const [view, setView] = useState<keyof FabricPhotos>('swatch');
@@ -40,15 +39,30 @@ export function ProductPage({ route }: { route: Route }) {
   );
   const tailors = useMemo(() => {
     if (!fabric) return [];
-    return loadTailors()
+    return allTailors
       .filter((tl) => specialtyFor(tl.specialtyKey).garments.some((g) => fabric.bestFor.includes(g)))
       .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
       .slice(0, 3);
-  }, [fabric]);
+  }, [fabric, allTailors]);
 
   useEffect(() => {
     if (fabric && garmentsRanked[0]) setMeters(requiredMeters(garmentsRanked[0], fabric, measurements).meters);
   }, [fabric?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!fabric && catalogStatus === 'loading') {
+    return (
+      <div className="wrap py-24" aria-busy="true">
+        <div className="grid gap-10 lg:grid-cols-[1.15fr_1fr]">
+          <div className="aspect-square animate-pulse rounded-[6px] bg-mist" />
+          <div className="space-y-4">
+            <div className="h-10 w-2/3 animate-pulse rounded bg-mist" />
+            <div className="h-6 w-1/3 animate-pulse rounded bg-mist" />
+            <div className="h-24 animate-pulse rounded bg-mist" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!fabric) {
     return (
@@ -61,8 +75,14 @@ export function ProductPage({ route }: { route: Route }) {
   }
 
   const color = findColor(fabric, colorId);
-  const hasPhotos = !!color.photos;
-  const total = pricePerMeter(fabric, currency) * meters;
+  const views = VIEWS.filter((v) => !!color.photos?.[v.id]);
+  const hasPhotos = views.length > 1;
+  const stock = color.stockM;
+  const soldOut = stock !== undefined && stock < 0.5;
+  const maxMeters = stock === undefined ? 12 : Math.max(0.5, Math.min(12, Math.floor(stock * 10) / 10));
+  const lowStock = stock !== undefined && !soldOut && stock < 20;
+  const total = pricePerMeter(fabric, currency) * Math.min(meters, maxMeters);
+  const buy = () => addToCart(fabric.id, color.id, Math.min(meters, maxMeters));
   const sampled = hasSample(fabric.id, color.id);
   const firstGarment = garmentsRanked[0];
   const need = firstGarment ? requiredMeters(firstGarment, fabric, measurements) : null;
@@ -103,8 +123,8 @@ export function ProductPage({ route }: { route: Route }) {
             <FabricImage key={`${color.id}-${view}`} fabric={fabric} color={color} kind={view} alt={`${t(fabric.name)}, ${t(color.name)}`} eager className="animate-fade" />
           </div>
           {hasPhotos ? (
-            <div className="mt-3 grid grid-cols-4 gap-3" role="tablist" aria-label={t(L('Suratlar', 'Фото', 'Photos'))}>
-              {VIEWS.map((v) => (
+            <div className={`mt-3 grid gap-3 ${views.length >= 4 ? 'grid-cols-4' : views.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`} role="tablist" aria-label={t(L('Suratlar', 'Фото', 'Photos'))}>
+              {views.map((v) => (
                 <button
                   key={v.id}
                   type="button"
@@ -120,7 +140,7 @@ export function ProductPage({ route }: { route: Route }) {
                 </button>
               ))}
             </div>
-          ) : (
+          ) : color.photos?.swatch ? null : (
             <p className="mt-3 text-[13px] text-graphite">
               {t(L('Bu rang uchun surat tayyorlanmoqda. Rangni aniq ko‘rish uchun bepul namuna oling.', 'Фото этого цвета готовится. Закажите бесплатный образец, чтобы увидеть цвет вживую.', 'A photo of this colour is on its way. Order a free sample to see it in person.'))}
             </p>
@@ -155,7 +175,8 @@ export function ProductPage({ route }: { route: Route }) {
 
           <div className="mt-8">
             <TapeMeasure
-              meters={meters}
+              meters={Math.min(meters, maxMeters)}
+              max={maxMeters}
               onChange={setMeters}
               unit={unit}
               lang={lang}
@@ -175,14 +196,22 @@ export function ProductPage({ route }: { route: Route }) {
             />
           </div>
 
+          {(soldOut || lowStock) && (
+            <p className={`mt-4 text-[13.5px] ${soldOut ? 'text-danger' : 'text-graphite'}`} role="status">
+              {soldOut
+                ? t(L('Bu rang hozircha tugagan. Boshqa rangni tanlang yoki bepul namuna oling.', 'Этот цвет временно закончился. Выберите другой или закажите образец.', 'This colour is sold out for now. Pick another or order a free sample.'))
+                : t(L(`Omborda ${formatLength(stock!, unit, lang)} qoldi`, `На складе осталось ${formatLength(stock!, unit, lang)}`, `${formatLength(stock!, unit, lang)} left in stock`))}
+            </p>
+          )}
+
           <div className="mt-8 flex items-baseline justify-between border-t border-line pt-5">
             <span className="text-graphite">{t(UI.total)}</span>
             <span className="tabular text-[26px] font-medium">{formatMoney(total, currency, lang)}</span>
           </div>
 
           <div className="mt-5 hidden flex-col gap-3 lg:flex">
-            <button type="button" className="btn btn-primary w-full" onClick={() => addToCart(fabric.id, color.id, meters)}>
-              {t(UI.addToBag)}
+            <button type="button" className="btn btn-primary w-full" onClick={buy} disabled={soldOut}>
+              {soldOut ? t(L('Tugagan', 'Нет в наличии', 'Sold out')) : t(UI.addToBag)}
             </button>
             <div className="grid grid-cols-2 gap-3">
               <button type="button" className={`btn ${sampled ? 'btn-tape' : 'btn-secondary'}`} aria-pressed={sampled} onClick={() => toggleSample(fabric.id, color.id)}>
@@ -267,9 +296,9 @@ export function ProductPage({ route }: { route: Route }) {
             {sampled ? <Check className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
           </button>
           <a className="btn btn-secondary shrink-0 px-4" href={studioLink()}>3D</a>
-          <button type="button" className="btn btn-primary flex-1 px-3" onClick={() => addToCart(fabric.id, color.id, meters)}>
-            <span className="truncate">{t(UI.addToBag)}</span>
-            <span className="tabular opacity-80">· {formatMoney(total, currency, lang)}</span>
+          <button type="button" className="btn btn-primary flex-1 px-3" onClick={buy} disabled={soldOut}>
+            <span className="truncate">{soldOut ? t(L('Tugagan', 'Нет в наличии', 'Sold out')) : t(UI.addToBag)}</span>
+            {!soldOut && <span className="tabular opacity-80">· {formatMoney(total, currency, lang)}</span>}
           </button>
         </div>
       </div>

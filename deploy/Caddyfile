@@ -1,0 +1,21 @@
+# Caddy gets and renews HTTPS certificates by itself.
+api.matos.uz {
+	encode gzip
+	request_body {
+		max_size 10MB
+	}
+	reverse_proxy api:8080
+}
+
+admin.matos.uz {
+	encode gzip
+	root * /srv/admin
+	header {
+		X-Frame-Options DENY
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		X-Robots-Tag "noindex, nofollow"
+	}
+	try_files {path} /index.html
+	file_server
+}

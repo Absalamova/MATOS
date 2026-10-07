@@ -3,12 +3,11 @@ import { Phone, Search, Send, Star } from 'lucide-react';
 import { useApp } from '../state/app';
 import { navigate, Route } from '../lib/router';
 import { L, UI } from '../lib/i18n';
-import { formatMoney, formatNumber, formatPhone, isValidPhone } from '../lib/format';
-import { CITIES, SPECIALTIES, specialtyFor, SpecialtyKey, Tailor } from '../data/tailors';
-import { loadTailors, saveTailors } from '../lib/tailors';
+import { displayPhone, formatMoney, formatNumber, formatPhone, isValidPhone, normalizePhone, telHref } from '../lib/format';
+import { CITIES, SPECIALTIES, specialtyFor, type SpecialtyKey, type Tailor } from '../data/tailors';
 import { GARMENTS, findGarment } from '../data/garments';
 import { findColor } from '../data/fabrics';
-import { bookTailor } from '../lib/orders';
+import { applyAsTailor, errorText, requestTailor } from '../lib/api';
 import { sizeFor } from '../lib/measure';
 import { Dialog } from '../components/ui/Dialog';
 import { GarmentTypeKey } from '../types';
@@ -33,9 +32,10 @@ function BookingDialog({ tailor, onClose, preset }: { tailor: Tailor | null; onC
   }, [preset.fabric, preset.color, cart, fabricById, t]);
   const [fabricChoice, setFabricChoice] = useState(fabricOptions[0]?.id ?? 'own');
   const [name, setName] = useState(user?.name ?? '');
-  const [phone, setPhone] = useState(user?.identifier?.startsWith('+') ? user.identifier : '+998 ');
+  const [phone, setPhone] = useState(user ? displayPhone(user.phone) : '+998 ');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
   const [doneId, setDoneId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,27 +49,31 @@ function BookingDialog({ tailor, onClose, preset }: { tailor: Tailor | null; onC
   const g = findGarment(garment)!;
   const size = sizeFor(measurements);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return setError(t(L('Ismingizni yozing.', 'Укажите имя.', 'Enter your name.')));
+    if (busy) return;
+    if (name.trim().length < 2) return setError(t(L('Ismingizni yozing.', 'Укажите имя.', 'Enter your name.')));
     if (!isValidPhone(phone)) return setError(t(L('Telefon raqamini +998 XX XXX XX XX ko‘rinishida yozing.', 'Укажите телефон в формате +998 XX XXX XX XX.', 'Enter the phone as +998 XX XXX XX XX.')));
-    const fabricLabel = fabricChoice === 'own' ? t(L('Mato mijozniki', 'Ткань клиента', 'Customer’s own fabric')) : fabricOptions.find((o) => o.id === fabricChoice)?.label;
-    const id = bookTailor({
-      customer: { name: name.trim(), phone, userId: user?.id, city: tailor.city },
-      tailorId: tailor.id,
-      atelierName: tailor.atelierName,
-      garmentTitle: g.name.uz,
-      priceFromUZS: tailor.priceStartingUZS,
-      note: [
-        `Mato: ${fabricLabel}`,
-        `O‘lchamlar: bo‘y ${measurements.heightCm}, ko‘krak ${measurements.bustCm}, bel ${measurements.waistCm}, son ${measurements.hipsCm} sm (${size.EU})`,
-        note.trim(),
-      ]
-        .filter(Boolean)
-        .join('. '),
-    });
-    setDoneId(id);
-    notify(t(L(`So‘rov yuborildi: ${id}`, `Заявка отправлена: ${id}`, `Request sent: ${id}`)));
+    setError('');
+    setBusy(true);
+    try {
+      const [fabricId, colorId] = fabricChoice === 'own' ? [undefined, undefined] : fabricChoice.split(':');
+      const req = await requestTailor({
+        tailorId: tailor.id,
+        garmentKey: garment,
+        fabricId,
+        colorId,
+        customer: { name: name.trim(), phone: normalizePhone(phone)! },
+        measurements,
+        note: note.trim() || undefined,
+      });
+      setDoneId(req.number);
+      notify(t(L(`So‘rov yuborildi: ${req.number}`, `Заявка отправлена: ${req.number}`, `Request sent: ${req.number}`)));
+    } catch (ex) {
+      setError(errorText(ex, t));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -77,7 +81,7 @@ function BookingDialog({ tailor, onClose, preset }: { tailor: Tailor | null; onC
       {doneId ? (
         <div className="px-5 py-8 sm:px-6">
           <p className="text-[17px]">
-            {t(L(`Buyurtma raqami ${doneId}. ${tailor.name} 1 ish kuni ichida ${phone} raqamiga qo‘ng‘iroq qiladi.`, `Номер заявки ${doneId}. ${tailor.name} позвонит на ${phone} в течение рабочего дня.`, `Request ${doneId}. ${tailor.name} will call ${phone} within one working day.`))}
+            {t(L(`So‘rov raqami ${doneId}. ${tailor.name} 1 ish kuni ichida ${phone} raqamiga qo‘ng‘iroq qiladi.`, `Номер заявки ${doneId}. ${tailor.name} позвонит на ${phone} в течение рабочего дня.`, `Request ${doneId}. ${tailor.name} will call ${phone} within one working day.`))}
           </p>
           <p className="mt-3 text-graphite">{t(L('Tikish narxi va muddati suhbatda aniqlanadi.', 'Цена и сроки пошива уточняются в разговоре.', 'Price and timing are agreed on the call.'))}</p>
           <button type="button" className="btn btn-primary mt-8" onClick={onClose}>{t(UI.close)}</button>
@@ -123,84 +127,113 @@ function BookingDialog({ tailor, onClose, preset }: { tailor: Tailor | null; onC
             <textarea className="field" rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t(L('Masalan: to‘yga, 3 haftada kerak', 'Например: на свадьбу, нужно через 3 недели', 'E.g. for a wedding, needed in 3 weeks'))} />
           </label>
           {error && <p className="text-[13.5px] text-danger" role="alert">{error}</p>}
-          <button type="submit" className="btn btn-primary w-full">{t(L('So‘rov yuborish', 'Отправить заявку', 'Send request'))}</button>
+          <button type="submit" className="btn btn-primary w-full" disabled={busy}>
+            {busy ? t(L('Yuborilmoqda…', 'Отправляем…', 'Sending…')) : t(L('So‘rov yuborish', 'Отправить заявку', 'Send request'))}
+          </button>
         </form>
       )}
     </Dialog>
   );
 }
 
-function RegisterDialog({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: (tl: Tailor) => void }) {
-  const { t } = useApp();
+function RegisterDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t, notify } = useApp();
   const [f, setF] = useState({ name: '', atelier: '', city: 'Toshkent', district: '', specialty: 'couture' as SpecialtyKey, years: '5', price: '300000', phone: '+998 ', telegram: '' });
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
   const upd = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
-  const submit = (e: React.FormEvent) => {
+  const finish = () => {
+    onClose();
+    if (sent) {
+      setSent(false);
+      setF((p) => ({ ...p, name: '', atelier: '', district: '', telegram: '', phone: '+998 ' }));
+    }
+  };
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!f.name.trim() || !f.atelier.trim()) return setError(t(L('Usta va atelye nomini yozing.', 'Укажите имя мастера и название ателье.', 'Enter the tailor and atelier names.')));
+    if (busy) return;
+    if (f.name.trim().length < 2 || f.atelier.trim().length < 2) return setError(t(L('Usta va atelye nomini yozing.', 'Укажите имя мастера и название ателье.', 'Enter the tailor and atelier names.')));
     if (!isValidPhone(f.phone)) return setError(t(L('Telefon raqamini to‘liq yozing.', 'Укажите телефон полностью.', 'Enter the full phone number.')));
     const tg = f.telegram.trim().replace(/^@/, '');
-    const tl: Tailor = {
-      id: `tailor-${Date.now()}`,
-      name: f.name.trim(),
-      atelierName: f.atelier.trim(),
-      city: f.city,
-      district: f.district.trim() || f.city,
-      specialtyKey: f.specialty,
-      specialtyLabel: specialtyFor(f.specialty).label,
-      experienceYears: Math.max(0, Number(f.years) || 0),
-      rating: null,
-      reviewsCount: 0,
-      completedOrders: 0,
-      priceStartingUZS: Math.max(0, Number(f.price) || 0),
-      leadDays: 14,
-      phone: f.phone,
-      telegram: tg ? `@${tg}` : '',
-      address: `${f.city}${f.district ? `, ${f.district}` : ''}`,
-      description: {
-        uz: `${f.atelier.trim()} — ${specialtyFor(f.specialty).label.uz.toLowerCase()}.`,
-        ru: `${f.atelier.trim()} — ${specialtyFor(f.specialty).label.ru.toLowerCase()}.`,
-        en: `${f.atelier.trim()} — ${specialtyFor(f.specialty).label.en.toLowerCase()}.`,
-      },
-    };
-    onSaved(tl);
+    if (tg && !/^[A-Za-z0-9_]{3,32}$/.test(tg)) return setError(t(L('Telegram: faqat lotin harflari, raqam va _', 'Telegram: только латиница, цифры и _', 'Telegram: letters, digits and _ only')));
+    setError('');
+    setBusy(true);
+    try {
+      await applyAsTailor({
+        name: f.name.trim(),
+        atelierName: f.atelier.trim(),
+        city: f.city,
+        district: f.district.trim() || undefined,
+        specialtyKey: f.specialty,
+        experienceYears: Math.max(0, Math.round(Number(f.years) || 0)),
+        priceStartingUZS: Math.max(0, Math.round(Number(f.price) || 0)),
+        phone: normalizePhone(f.phone)!,
+        telegram: tg || undefined,
+      });
+      setSent(true);
+      notify(t(L('Ariza yuborildi', 'Заявка отправлена', 'Application sent')));
+    } catch (ex) {
+      setError(errorText(ex, t));
+    } finally {
+      setBusy(false);
+    }
   };
   return (
-    <Dialog open={open} onClose={onClose} title={t(L('Atelyeni qo‘shish', 'Добавить ателье', 'List your atelier'))} closeLabel={t(UI.close)}>
-      <form onSubmit={submit} className="space-y-4 px-5 py-6 sm:px-6" noValidate>
-        <p className="text-graphite">{t(L('Profilingiz darhol ro‘yxatda chiqadi. Reyting birinchi sharhlardan keyin paydo bo‘ladi.', 'Профиль сразу появится в списке. Рейтинг появится после первых отзывов.', 'Your profile appears right away. A rating shows after the first reviews.'))}</p>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block"><span className="label">{t(L('Usta ismi', 'Имя мастера', 'Tailor name'))}</span><input className="field" value={f.name} onChange={(e) => upd('name', e.target.value)} data-autofocus /></label>
-          <label className="block"><span className="label">{t(L('Atelye nomi', 'Название ателье', 'Atelier name'))}</span><input className="field" value={f.atelier} onChange={(e) => upd('atelier', e.target.value)} /></label>
-          <label className="block"><span className="label">{t(L('Shahar', 'Город', 'City'))}</span>
-            <select className="field" value={f.city} onChange={(e) => upd('city', e.target.value)}>{CITIES.map((c) => <option key={c}>{c}</option>)}</select>
-          </label>
-          <label className="block"><span className="label">{t(L('Tuman, ko‘cha', 'Район, улица', 'District, street'))}</span><input className="field" value={f.district} onChange={(e) => upd('district', e.target.value)} /></label>
-          <label className="block sm:col-span-2"><span className="label">{t(L('Ixtisoslik', 'Специализация', 'Speciality'))}</span>
-            <select className="field" value={f.specialty} onChange={(e) => upd('specialty', e.target.value)}>{SPECIALTIES.map((s) => <option key={s.id} value={s.id}>{t(s.label)}</option>)}</select>
-          </label>
-          <label className="block"><span className="label">{t(L('Tajriba, yil', 'Опыт, лет', 'Experience, years'))}</span><input className="field" type="number" min={0} inputMode="numeric" value={f.years} onChange={(e) => upd('years', e.target.value)} /></label>
-          <label className="block"><span className="label">{t(L('Tikish narxi, so‘mdan', 'Цена пошива от, сум', 'Sewing from, UZS'))}</span><input className="field" type="number" min={0} inputMode="numeric" step={10000} value={f.price} onChange={(e) => upd('price', e.target.value)} /></label>
-          <label className="block"><span className="label">{t(L('Telefon', 'Телефон', 'Phone'))}</span><input className="field tabular" type="tel" value={f.phone} onChange={(e) => upd('phone', formatPhone(e.target.value))} /></label>
-          <label className="block"><span className="label">Telegram</span><input className="field" value={f.telegram} placeholder="@username" onChange={(e) => upd('telegram', e.target.value)} /></label>
+    <Dialog open={open} onClose={finish} title={sent ? t(L('Ariza qabul qilindi', 'Заявка принята', 'Application received')) : t(L('Atelyeni qo‘shish', 'Добавить ателье', 'List your atelier'))} closeLabel={t(UI.close)}>
+      {sent ? (
+        <div className="px-5 py-8 sm:px-6">
+          <div className="h-1.5 w-16 rounded-full bg-tape" aria-hidden="true" />
+          <p className="mt-6 text-[17px]">
+            {t(L(`${f.atelier} arizasi qabul qilindi. Moderator 1–2 ish kunida ${f.phone} raqamiga bog‘lanadi, tasdiqlangach atelye ro‘yxatda chiqadi.`, `Заявка ${f.atelier} принята. Модератор свяжется по номеру ${f.phone} в течение 1–2 рабочих дней; после проверки ателье появится в списке.`, `${f.atelier} is under review. We’ll call ${f.phone} within 1–2 working days; the atelier appears in the list once approved.`))}
+          </p>
+          <button type="button" className="btn btn-primary mt-8" onClick={finish}>{t(UI.close)}</button>
         </div>
-        {error && <p className="text-[13.5px] text-danger" role="alert">{error}</p>}
-        <button type="submit" className="btn btn-primary w-full">{t(L('Profilni saqlash', 'Сохранить профиль', 'Save profile'))}</button>
-      </form>
+      ) : (
+        <form onSubmit={submit} className="space-y-4 px-5 py-6 sm:px-6" noValidate>
+          <p className="text-graphite">{t(L('Ariza tekshiruvdan keyin ro‘yxatda chiqadi. Reyting birinchi sharhlardan keyin paydo bo‘ladi.', 'Профиль появится в списке после проверки. Рейтинг — после первых отзывов.', 'Your profile appears after a quick review. A rating shows after the first reviews.'))}</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block"><span className="label">{t(L('Usta ismi', 'Имя мастера', 'Tailor name'))}</span><input className="field" value={f.name} onChange={(e) => upd('name', e.target.value)} autoComplete="name" data-autofocus /></label>
+            <label className="block"><span className="label">{t(L('Atelye nomi', 'Название ателье', 'Atelier name'))}</span><input className="field" value={f.atelier} onChange={(e) => upd('atelier', e.target.value)} autoComplete="organization" /></label>
+            <label className="block"><span className="label">{t(L('Shahar', 'Город', 'City'))}</span>
+              <select className="field" value={f.city} onChange={(e) => upd('city', e.target.value)}>{CITIES.map((c) => <option key={c}>{c}</option>)}</select>
+            </label>
+            <label className="block"><span className="label">{t(L('Tuman, ko‘cha', 'Район, улица', 'District, street'))}</span><input className="field" value={f.district} onChange={(e) => upd('district', e.target.value)} /></label>
+            <label className="block sm:col-span-2"><span className="label">{t(L('Ixtisoslik', 'Специализация', 'Speciality'))}</span>
+              <select className="field" value={f.specialty} onChange={(e) => upd('specialty', e.target.value)}>{SPECIALTIES.map((s) => <option key={s.id} value={s.id}>{t(s.label)}</option>)}</select>
+            </label>
+            <label className="block"><span className="label">{t(L('Tajriba, yil', 'Опыт, лет', 'Experience, years'))}</span><input className="field" type="number" min={0} max={70} inputMode="numeric" value={f.years} onChange={(e) => upd('years', e.target.value)} /></label>
+            <label className="block"><span className="label">{t(L('Tikish narxi, so‘mdan', 'Цена пошива от, сум', 'Sewing from, UZS'))}</span><input className="field" type="number" min={0} inputMode="numeric" step={10000} value={f.price} onChange={(e) => upd('price', e.target.value)} /></label>
+            <label className="block"><span className="label">{t(L('Telefon', 'Телефон', 'Phone'))}</span><input className="field tabular" type="tel" inputMode="tel" value={f.phone} onChange={(e) => upd('phone', formatPhone(e.target.value))} autoComplete="tel" /></label>
+            <label className="block"><span className="label">Telegram</span><input className="field" value={f.telegram} placeholder="@username" onChange={(e) => upd('telegram', e.target.value)} /></label>
+          </div>
+          {error && <p className="text-[13.5px] text-danger" role="alert">{error}</p>}
+          <button type="submit" className="btn btn-primary w-full" disabled={busy}>
+            {busy ? t(L('Yuborilmoqda…', 'Отправляем…', 'Sending…')) : t(L('Arizani yuborish', 'Отправить заявку', 'Send application'))}
+          </button>
+        </form>
+      )}
     </Dialog>
   );
 }
 
 export function TailorsPage({ route }: { route: Route }) {
-  const { t, lang, notify } = useApp();
+  const { t, lang, tailors } = useApp();
   const q = route.query;
-  const [tailors, setTailors] = useState<Tailor[]>(loadTailors);
   const [city, setCity] = useState<string>('all');
   const presetGarment = q.get('garment') ?? undefined;
   const presetSpecialty = presetGarment ? SPECIALTIES.find((s) => s.garments.includes(presetGarment as GarmentTypeKey))?.id : undefined;
   const [spec, setSpec] = useState<SpecialtyKey | 'all'>(presetSpecialty ?? 'all');
   const [query, setQuery] = useState('');
   const [booking, setBooking] = useState<Tailor | null>(() => tailors.find((x) => x.id === q.get('book')) ?? null);
+  // The list may arrive after the page opened with ?book=…
+  useEffect(() => {
+    const id = q.get('book');
+    if (id && !booking) {
+      const found = tailors.find((x) => x.id === id);
+      if (found) setBooking(found);
+    }
+  }, [tailors]); // eslint-disable-line react-hooks/exhaustive-deps
   const [registering, setRegistering] = useState(q.get('register') === '1');
 
   const list = tailors.filter((x) => {
@@ -280,7 +313,7 @@ export function TailorsPage({ route }: { route: Route }) {
               </dl>
               <div className="mt-auto flex items-center gap-2 pt-6">
                 <button type="button" className="btn btn-primary flex-1" onClick={() => setBooking(x)}>{t(L('Buyurtma berish', 'Заказать пошив', 'Request a fitting'))}</button>
-                <a className="icon-btn border border-line" href={`tel:${x.phone.replace(/[^\d+]/g, '')}`} aria-label={`${t(L('Qo‘ng‘iroq', 'Позвонить', 'Call'))} ${x.phone}`}><Phone className="h-4 w-4" /></a>
+                <a className="icon-btn border border-line" href={telHref(x.phone)} aria-label={`${t(L('Qo‘ng‘iroq', 'Позвонить', 'Call'))} ${x.phone}`}><Phone className="h-4 w-4" /></a>
                 {x.telegram && (
                   <a className="icon-btn border border-line" href={`https://t.me/${x.telegram.replace('@', '')}`} target="_blank" rel="noreferrer" aria-label={`Telegram ${x.telegram}`}><Send className="h-4 w-4" /></a>
                 )}
@@ -291,17 +324,7 @@ export function TailorsPage({ route }: { route: Route }) {
       )}
 
       <BookingDialog key={booking?.id ?? 'none'} tailor={booking} onClose={() => { setBooking(null); if (q.get('book')) navigate('tailors', { replace: true, query: { garment: presetGarment, fabric: preset.fabric, color: preset.color } }); }} preset={preset} />
-      <RegisterDialog
-        open={registering}
-        onClose={() => setRegistering(false)}
-        onSaved={(tl) => {
-          const next = [tl, ...tailors];
-          setTailors(next);
-          saveTailors(next);
-          setRegistering(false);
-          notify(t(L(`${tl.atelierName} ro‘yxatga qo‘shildi`, `${tl.atelierName} добавлено в список`, `${tl.atelierName} is now listed`)));
-        }}
-      />
+      <RegisterDialog open={registering} onClose={() => setRegistering(false)} />
     </div>
   );
 }

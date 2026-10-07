@@ -1,8 +1,16 @@
 node_modules/
-build/
 dist/
+build/
 coverage/
 .DS_Store
 *.log
+
+# API data: SQLite database, uploaded photos, backups
+server/data/
+*.db
+*.db-shm
+*.db-wal
+
+# Local secrets
 .env*
 !.env.example

@@ -1,13 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { Minus, Plus, Trash2 } from 'lucide-react';
-import { MAX_SAMPLES, useApp } from '../state/app';
+import { useApp } from '../state/app';
 import { L, UI } from '../lib/i18n';
-import { formatLength, formatMoney, formatPhone, isValidPhone, pricePerMeter, toUnit, fromUnit } from '../lib/format';
+import { displayPhone, formatLength, formatMoney, formatPhone, isValidPhone, normalizePhone, pricePerMeter, toUnit, fromUnit } from '../lib/format';
 import { findColor } from '../data/fabrics';
 import { findGarment } from '../data/garments';
 import { CITIES } from '../data/tailors';
 import { href } from '../lib/router';
-import { placeOrder } from '../lib/orders';
+import { ApiError, errorText, newIdempotencyKey, placeOrder } from '../lib/api';
+import { deliveryFeeUZS, fromUZS } from '../../shared/pricing';
+import type { CheckoutResult } from '../types';
 import { Dialog } from './ui/Dialog';
 import { ColorChip, FabricImage } from './ui/FabricImage';
 
@@ -15,11 +17,14 @@ type Step = 'bag' | 'checkout' | 'done';
 
 export function CartDrawer() {
   const app = useApp();
-  const { t, lang, currency, unit, overlay, close, cart, samples, fabricById, setCartMeters, removeFromCart, toggleSample, clearCart, clearSamples, user, open } = app;
+  const { t, lang, currency, unit, overlay, close, cart, samples, fabricById, setCartMeters, removeFromCart, toggleSample, clearCart, clearSamples, user, open, settings, maxSamples, refreshCatalog } = app;
   const [step, setStep] = useState<Step>('bag');
   const [form, setForm] = useState({ name: '', phone: '+998 ', city: 'Toshkent', address: '', note: '', delivery: 'courier' as 'courier' | 'pickup', payment: 'cash' as 'cash' | 'card' });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [done, setDone] = useState<{ orderId?: string; swatchId?: string; phone: string } | null>(null);
+  const [submitError, setSubmitError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [idemKey, setIdemKey] = useState('');
+  const [done, setDone] = useState<{ result: CheckoutResult; phone: string } | null>(null);
 
   const lines = useMemo(
     () =>
@@ -27,9 +32,17 @@ export function CartDrawer() {
         .map((i) => {
           const f = fabricById(i.fabricId);
           if (!f) return null;
-          return { item: i, fabric: f, color: findColor(f, i.colorId), amount: pricePerMeter(f, currency) * i.meters, amountUZS: f.priceUZS * i.meters };
+          const color = findColor(f, i.colorId);
+          return { item: i, fabric: f, color, amount: pricePerMeter(f, currency) * i.meters, amountUZS: f.priceUZS * i.meters, stock: color.stockM };
         })
-        .filter(Boolean) as { item: (typeof cart)[number]; fabric: NonNullable<ReturnType<typeof fabricById>>; color: ReturnType<typeof findColor>; amount: number; amountUZS: number }[],
+        .filter(Boolean) as {
+        item: (typeof cart)[number];
+        fabric: NonNullable<ReturnType<typeof fabricById>>;
+        color: ReturnType<typeof findColor>;
+        amount: number;
+        amountUZS: number;
+        stock: number | undefined;
+      }[],
     [cart, fabricById, currency],
   );
   const sampleLines = samples
@@ -40,8 +53,11 @@ export function CartDrawer() {
     .filter(Boolean) as { s: (typeof samples)[number]; fabric: NonNullable<ReturnType<typeof fabricById>>; color: ReturnType<typeof findColor> }[];
 
   const subtotal = lines.reduce((s, l) => s + l.amount, 0);
-  const delivery = form.delivery === 'pickup' || lines.length === 0 ? 0 : subtotal >= (currency === 'UZS' ? 1000000 : 80) ? 0 : currency === 'UZS' ? 25000 : 2;
+  const subtotalUZS = lines.reduce((s, l) => s + Math.round(l.amountUZS), 0);
+  const delivery = fromUZS(deliveryFeeUZS(subtotalUZS, form.delivery, settings, lines.length > 0), currency, settings.rates);
   const empty = lines.length === 0 && sampleLines.length === 0;
+  const overStock = lines.filter((l) => l.stock !== undefined && l.item.meters > l.stock + 1e-9);
+  const tooManySamples = sampleLines.length > maxSamples;
 
   const onClose = () => {
     close();
@@ -55,37 +71,59 @@ export function CartDrawer() {
     setForm((f) => ({
       ...f,
       name: f.name || user?.name || '',
-      phone: f.phone.trim() !== '+998' ? f.phone : user?.identifier?.startsWith('+') ? user.identifier : '+998 ',
+      phone: f.phone.trim() !== '+998' ? f.phone : user ? displayPhone(user.phone) : '+998 ',
     }));
+    setSubmitError('');
+    setIdemKey(newIdempotencyKey());
     setStep('checkout');
   };
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy) return;
     const err: Record<string, string> = {};
-    if (!form.name.trim()) err.name = t(L('Ismingizni yozing', 'Укажите имя', 'Enter your name'));
+    if (form.name.trim().length < 2) err.name = t(L('Ismingizni yozing', 'Укажите имя', 'Enter your name'));
     if (!isValidPhone(form.phone)) err.phone = t(L('Raqamni +998 XX XXX XX XX ko‘rinishida yozing', 'Формат: +998 XX XXX XX XX', 'Use +998 XX XXX XX XX'));
-    if (form.delivery === 'courier' && !form.address.trim()) err.address = t(L('Manzilni yozing', 'Укажите адрес', 'Enter the address'));
+    if (form.delivery === 'courier' && form.address.trim().length < 5) err.address = t(L('Manzilni to‘liq yozing', 'Укажите полный адрес', 'Enter the full address'));
     setErrors(err);
+    setSubmitError('');
     if (Object.keys(err).length) return;
-    const res = placeOrder({
-      customer: { name: form.name.trim(), phone: form.phone, city: form.city, address: form.delivery === 'pickup' ? 'Olib ketish: Toshkent, Chilonzor' : form.address.trim(), userId: user?.id },
-      lines: lines.map((l) => ({
-        fabricId: l.fabric.id,
-        colorId: l.color.id,
-        title: `${l.fabric.name.uz} — ${l.color.name.uz}${l.item.garmentKey ? ` (${findGarment(l.item.garmentKey)?.name.uz})` : ''}`,
-        meters: l.item.meters,
-        amountUZS: Math.round(l.amountUZS),
-      })),
-      samples: sampleLines.map((s) => `${s.fabric.name.uz} — ${s.color.name.uz}`),
-      note: form.note.trim(),
-      delivery: form.delivery,
-      payment: form.payment,
-    });
-    setDone({ ...res, phone: form.phone });
-    clearCart();
-    clearSamples();
-    setStep('done');
+    setBusy(true);
+    try {
+      const result = await placeOrder(
+        {
+          customer: { name: form.name.trim(), phone: normalizePhone(form.phone)! },
+          delivery: form.delivery === 'courier' ? { method: 'courier', city: form.city, address: form.address.trim() } : { method: 'pickup' },
+          payment: form.payment,
+          note: form.note.trim() || undefined,
+          items: lines.map((l) => ({ fabricId: l.fabric.id, colorId: l.color.id, meters: l.item.meters, garmentKey: l.item.garmentKey })),
+          samples: sampleLines.map((x) => ({ fabricId: x.fabric.id, colorId: x.color.id })),
+        },
+        idemKey,
+      );
+      setDone({ result, phone: displayPhone(normalizePhone(form.phone)!) });
+      clearCart();
+      clearSamples();
+      setForm((f) => ({ ...f, note: '' }));
+      setStep('done');
+      refreshCatalog();
+    } catch (ex) {
+      if (ex instanceof ApiError) {
+        if (ex.code === 'validation' && ex.fields) {
+          setErrors({
+            name: ex.fields['customer.name'] ? t(L('Ismingizni yozing', 'Укажите имя', 'Enter your name')) : '',
+            phone: ex.fields['customer.phone'] ? t(L('Raqamni +998 XX XXX XX XX ko‘rinishida yozing', 'Формат: +998 XX XXX XX XX', 'Use +998 XX XXX XX XX')) : '',
+            address: ex.fields['delivery.address'] ? t(L('Manzilni to‘liq yozing', 'Укажите полный адрес', 'Enter the full address')) : '',
+          });
+        }
+        if (ex.code === 'out_of_stock' || ex.code === 'unavailable') refreshCatalog();
+        // A definite answer from the server means this attempt is over; the next one gets a new key.
+        if (ex.status >= 400 && ex.status < 500) setIdemKey(newIdempotencyKey());
+      }
+      setSubmitError(errorText(ex, t));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const title =
@@ -97,26 +135,40 @@ export function CartDrawer() {
 
   const footer =
     step === 'bag' && !empty ? (
-      <div className="space-y-3">
+      <div key="bag-footer" className="space-y-3">
         {lines.length > 0 && (
           <div className="flex items-baseline justify-between">
             <span className="text-graphite">{t(L('Matolar', 'Ткани', 'Fabrics'))}</span>
             <span className="tabular text-[20px] font-medium">{formatMoney(subtotal, currency, lang)}</span>
           </div>
         )}
-        <button type="button" className="btn btn-primary w-full" onClick={startCheckout}>
+        {(overStock.length > 0 || tooManySamples) && (
+          <p className="text-[13px] text-danger" role="alert">
+            {overStock.length > 0
+              ? t(L('Ba’zi matolar omborda yetarli emas — metrajni kamaytiring.', 'Некоторых тканей не хватает на складе — уменьшите метраж.', 'Some fabrics are short in stock — reduce the length.'))
+              : t(L(`Bepul namunalar ${maxSamples} tagacha.`, `Бесплатных образцов — до ${maxSamples}.`, `Up to ${maxSamples} free samples.`))}
+          </p>
+        )}
+        <button key="to-checkout" type="button" className="btn btn-primary w-full" onClick={startCheckout} disabled={overStock.length > 0 || tooManySamples}>
           {lines.length ? t(L('Rasmiylashtirish', 'Оформить заказ', 'Check out')) : t(L('Namunalarni buyurtma qilish', 'Заказать образцы', 'Order samples'))}
         </button>
       </div>
     ) : step === 'checkout' ? (
-      <div className="space-y-3">
+      <div key="checkout-footer" className="space-y-3">
         <div className="tabular space-y-1 text-[14px]">
           {lines.length > 0 && <div className="flex justify-between"><span className="text-graphite">{t(L('Matolar', 'Ткани', 'Fabrics'))}</span><span>{formatMoney(subtotal, currency, lang)}</span></div>}
           {sampleLines.length > 0 && <div className="flex justify-between"><span className="text-graphite">{t(UI.freeSamples)} × {sampleLines.length}</span><span>0</span></div>}
           <div className="flex justify-between"><span className="text-graphite">{t(L('Yetkazish', 'Доставка', 'Delivery'))}</span><span>{delivery ? formatMoney(delivery, currency, lang) : t(L('bepul', 'бесплатно', 'free'))}</span></div>
           <div className="flex justify-between border-t border-line pt-2 text-[17px] font-medium"><span>{t(UI.total)}</span><span>{formatMoney(subtotal + delivery, currency, lang)}</span></div>
         </div>
-        <button type="submit" form="checkout" className="btn btn-primary w-full">{t(L('Buyurtmani tasdiqlash', 'Подтвердить заказ', 'Place order'))}</button>
+        {submitError && (
+          <p className="text-[13.5px] text-danger" role="alert">
+            {submitError}
+          </p>
+        )}
+        <button key="place-order" type="submit" form="checkout" className="btn btn-primary w-full" disabled={busy}>
+          {busy ? t(L('Yuborilmoqda…', 'Отправляем…', 'Sending…')) : t(L('Buyurtmani tasdiqlash', 'Подтвердить заказ', 'Place order'))}
+        </button>
       </div>
     ) : undefined;
 
@@ -160,12 +212,25 @@ export function CartDrawer() {
                               <Minus className="h-3.5 w-3.5" />
                             </button>
                             <span className="tabular min-w-[64px] text-center text-[14px]">{formatLength(l.item.meters, unit, lang)}</span>
-                            <button type="button" className="icon-btn h-8 w-8" onClick={() => setCartMeters(l.item.id, fromUnit(toUnit(l.item.meters, unit) + 0.5, unit))} aria-label="+0,5">
+                            <button
+                              type="button"
+                              className="icon-btn h-8 w-8 disabled:opacity-35"
+                              disabled={l.stock !== undefined && l.item.meters >= l.stock - 1e-9}
+                              onClick={() => setCartMeters(l.item.id, Math.min(l.stock ?? 100, fromUnit(toUnit(l.item.meters, unit) + 0.5, unit)))}
+                              aria-label="+0,5"
+                            >
                               <Plus className="h-3.5 w-3.5" />
                             </button>
                           </div>
                           <span className="tabular font-medium">{formatMoney(l.amount, currency, lang)}</span>
                         </div>
+                        {l.stock !== undefined && l.item.meters > l.stock + 1e-9 && (
+                          <p className="mt-2 text-[13px] text-danger">
+                            {l.stock < 0.5
+                              ? t(L('Bu rang tugagan', 'Этот цвет закончился', 'This colour is sold out'))
+                              : t(L(`Omborda ${formatLength(l.stock, unit, lang)} qolgan`, `На складе ${formatLength(l.stock, unit, lang)}`, `${formatLength(l.stock, unit, lang)} left in stock`))}
+                          </p>
+                        )}
                       </div>
                     </li>
                   ))}
@@ -175,13 +240,13 @@ export function CartDrawer() {
               <section className={`${lines.length ? 'mt-6 border-t border-line pt-6' : ''}`} aria-labelledby="samples-title">
                 <div className="flex items-baseline justify-between">
                   <h3 id="samples-title" className="font-sans text-[15px] font-medium">{t(UI.freeSamples)}</h3>
-                  <span className="tabular text-[13px] text-graphite">{sampleLines.length}/{MAX_SAMPLES}</span>
+                  <span className="tabular text-[13px] text-graphite">{sampleLines.length}/{maxSamples}</span>
                 </div>
                 <p className="mt-1 text-[13px] text-graphite">
                   {t(L('10×10 sm bo‘laklar. Matoni ushlab ko‘rib, keyin xarid qiling.', 'Отрезы 10×10 см. Потрогайте ткань, потом покупайте.', '10×10 cm cuttings. Feel the cloth before you buy.'))}
                 </p>
                 <div className="mt-3 flex gap-1" aria-hidden="true">
-                  {Array.from({ length: MAX_SAMPLES }).map((_, i) => (
+                  {Array.from({ length: maxSamples }).map((_, i) => (
                     <span key={i} className={`h-1.5 flex-1 rounded-full ${i < sampleLines.length ? 'bg-tape' : 'bg-well'}`} />
                   ))}
                 </div>
@@ -245,7 +310,7 @@ export function CartDrawer() {
             <>
               <label className="block">
                 <span className="label">{t(L('Shahar', 'Город', 'City'))}</span>
-                <select className="field" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })}>
+                <select className="field" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} autoComplete="address-level2">
                   {CITIES.map((c) => <option key={c}>{c}</option>)}
                 </select>
               </label>
@@ -256,7 +321,7 @@ export function CartDrawer() {
               </label>
             </>
           ) : (
-            <p className="text-[13.5px] text-graphite">{t(L('Toshkent, Chilonzor showroom: har kuni 10:00–20:00.', 'Ташкент, шоурум на Чиланзаре: ежедневно 10:00–20:00.', 'Tashkent, Chilanzar showroom: daily 10:00–20:00.'))}</p>
+            <p className="rounded-lg bg-mist p-3 text-[13.5px] text-graphite">{settings.pickupAddress}</p>
           )}
           {lines.length > 0 && (
             <fieldset>
@@ -280,13 +345,21 @@ export function CartDrawer() {
       {step === 'done' && done && (
         <div className="px-5 py-8 sm:px-6">
           <div className="h-1.5 w-16 rounded-full bg-tape" aria-hidden="true" />
-          <p className="mt-6 text-[18px] leading-relaxed">
-            {done.orderId && t(L(`Buyurtma ${done.orderId} qabul qilindi.`, `Заказ ${done.orderId} принят.`, `Order ${done.orderId} is placed.`))}{' '}
-            {done.swatchId && t(L(`Namunalar so‘rovi: ${done.swatchId}.`, `Заявка на образцы: ${done.swatchId}.`, `Sample request: ${done.swatchId}.`))}
-          </p>
+          <ul className="mt-6 space-y-2 text-[18px] leading-relaxed">
+            {done.result.orders.map((o) => (
+              <li key={o.number}>
+                {o.kind === 'fabric'
+                  ? t(L(`Buyurtma ${o.number} qabul qilindi — ${formatMoney(o.totalUZS, 'UZS', lang)}.`, `Заказ ${o.number} принят — ${formatMoney(o.totalUZS, 'UZS', lang)}.`, `Order ${o.number} is placed — ${formatMoney(o.totalUZS, 'UZS', lang)}.`))
+                  : t(L(`Bepul namunalar so‘rovi: ${o.number}.`, `Заявка на бесплатные образцы: ${o.number}.`, `Free sample request: ${o.number}.`))}
+              </li>
+            ))}
+          </ul>
           <p className="mt-3 text-graphite">
-            {t(L(`Operator ${done.phone} raqamiga 30 daqiqa ichida qo‘ng‘iroq qilib, yetkazish vaqtini kelishib oladi.`, `Оператор позвонит на ${done.phone} в течение 30 минут и согласует доставку.`, `We’ll call ${done.phone} within 30 minutes to arrange delivery.`))}
+            {t(L(`Operator ${done.phone} raqamiga ish vaqtida 30 daqiqa ichida qo‘ng‘iroq qilib, yetkazish vaqtini kelishib oladi.`, `Оператор позвонит на ${done.phone} в рабочее время в течение 30 минут и согласует доставку.`, `We’ll call ${done.phone} within 30 minutes during working hours to arrange delivery.`))}
           </p>
+          {user && (
+            <p className="mt-2 text-[13.5px] text-graphite">{t(L('Holatini profilingizdagi “Buyurtmalar” bo‘limida kuzatishingiz mumkin.', 'Статус можно отслеживать в профиле, раздел «Заказы».', 'Track the status under “Orders” in your profile.'))}</p>
+          )}
           <div className="mt-8 flex flex-col gap-3">
             <a className="btn btn-primary" href={href('tailors')} onClick={onClose}>{t(UI.findTailor)}</a>
             <button type="button" className="btn btn-secondary" onClick={onClose}>{t(L('Xaridni davom ettirish', 'Продолжить покупки', 'Keep shopping'))}</button>

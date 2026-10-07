@@ -1,43 +1,81 @@
-import { useEffect, useState } from 'react';
-import { FABRICS } from '../data/fabrics';
-import { Fabric } from '../types';
-import { KEYS, load } from './storage';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CatalogResponse, Fabric, StoreSettings, Tailor } from '../types';
+import { SEED_FABRICS } from '../data/fabrics';
+import { SEED_TAILORS } from '../data/tailors';
+import { DEFAULT_SETTINGS } from '../../shared/pricing';
+import { fetchCatalog, fetchTailors } from './api';
+import { KEYS, load, save } from './storage';
 
-interface Override {
-  priceUZS?: number;
-  stock?: number;
-  active?: boolean;
-}
+export type RemoteStatus = 'loading' | 'live' | 'offline';
 
-/** Applies the seller/admin panel edits (price, stock, visibility) to the catalog. */
-export function applyOverrides(): Fabric[] {
-  const ov = load<Record<string, Override>>(KEYS.fabricOverrides, {});
-  return FABRICS.filter((f) => ov[f.id]?.active !== false).map((f) => {
-    const o = ov[f.id];
-    if (!o?.priceUZS || o.priceUZS === f.priceUZS) return f;
-    const k = o.priceUZS / f.priceUZS;
-    return {
-      ...f,
-      priceUZS: o.priceUZS,
-      priceUSD: Math.round(f.priceUSD * k * 100) / 100,
-      priceEUR: Math.round(f.priceEUR * k * 100) / 100,
-    };
-  });
-}
+/**
+ * Stale-while-revalidate data from the API: the last good response (or the bundled seed) renders at once,
+ * then fresh data replaces it. Re-checked when the tab becomes visible and every few minutes while open.
+ * `live` tells callers the data really came from the server (used before pruning the bag).
+ */
+function useRemote<T>(cacheKey: string, initial: () => T, fetcher: (s: AbortSignal) => Promise<T>, refreshMs = 5 * 60_000) {
+  const [state, setState] = useState<{ data: T; status: RemoteStatus; live: boolean }>(() => ({ data: initial(), status: 'loading', live: false }));
+  const last = useRef(0);
+  const inflight = useRef<AbortController | null>(null);
 
-export function stockOf(id: string) {
-  const ov = load<Record<string, Override>>(KEYS.fabricOverrides, {});
-  return ov[id]?.stock;
-}
+  const refresh = useCallback(() => {
+    inflight.current?.abort();
+    const ctrl = new AbortController();
+    inflight.current = ctrl;
+    last.current = Date.now();
+    fetcher(ctrl.signal)
+      .then((data) => {
+        if (ctrl.signal.aborted) return;
+        save(cacheKey, data);
+        setState({ data, status: 'live', live: true });
+      })
+      .catch(() => {
+        if (!ctrl.signal.aborted) setState((s) => ({ ...s, status: s.live ? 'live' : 'offline' }));
+      });
+  }, [cacheKey, fetcher]);
 
-export function useCatalog() {
-  const [fabrics, setFabrics] = useState<Fabric[]>(applyOverrides);
   useEffect(() => {
-    const on = (e: StorageEvent) => {
-      if (!e.key || e.key === KEYS.fabricOverrides) setFabrics(applyOverrides());
+    refresh();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && Date.now() - last.current > 30_000) refresh();
     };
-    window.addEventListener('storage', on);
-    return () => window.removeEventListener('storage', on);
-  }, []);
-  return fabrics;
+    document.addEventListener('visibilitychange', onVisible);
+    const timer = window.setInterval(() => document.visibilityState === 'visible' && refresh(), refreshMs);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.clearInterval(timer);
+      inflight.current?.abort();
+    };
+  }, [refresh, refreshMs]);
+
+  return { ...state, refresh };
 }
+
+const initialCatalog = (): CatalogResponse => {
+  const cached = load<CatalogResponse | null>(KEYS.catalogCache, null);
+  if (cached && Array.isArray(cached.fabrics) && cached.fabrics.length) {
+    return { ...cached, settings: { ...DEFAULT_SETTINGS, ...cached.settings, rates: { ...DEFAULT_SETTINGS.rates, ...cached.settings?.rates } } };
+  }
+  return { fabrics: SEED_FABRICS, settings: DEFAULT_SETTINGS, updatedAt: '' };
+};
+
+export function useRemoteCatalog(): { fabrics: Fabric[]; settings: StoreSettings; status: RemoteStatus; live: boolean; refresh: () => void } {
+  const r = useRemote<CatalogResponse>(KEYS.catalogCache, initialCatalog, fetchCatalog);
+  return { fabrics: r.data.fabrics, settings: r.data.settings, status: r.status, live: r.live, refresh: r.refresh };
+}
+
+export function useRemoteTailors(): { tailors: Tailor[]; status: RemoteStatus; refresh: () => void } {
+  const r = useRemote<Tailor[]>(
+    KEYS.tailorsCache,
+    () => {
+      const cached = load<Tailor[] | null>(KEYS.tailorsCache, null);
+      return Array.isArray(cached) && cached.length ? cached : SEED_TAILORS;
+    },
+    fetchTailors,
+    10 * 60_000,
+  );
+  return { tailors: r.data, status: r.status, refresh: r.refresh };
+}
+
+/** Metres available for a colour; undefined means the stock is unknown (offline catalog). */
+export const stockOf = (fabric: Fabric, colorId: string) => fabric.colors.find((c) => c.id === colorId)?.stockM;

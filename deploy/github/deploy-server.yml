@@ -1,0 +1,47 @@
+# Copy this file to .github/workflows/deploy-server.yml to deploy the API and the seller panel
+# to your VPS on every push to main (the store keeps deploying to GitHub Pages via deploy.yml).
+#
+# Repository → Settings → Secrets and variables → Actions → New repository secret:
+#   VPS_HOST     server IP or hostname
+#   VPS_USER     SSH user that can write /opt/matos and /var/www/matos-admin and run `sudo systemctl restart matos-api`
+#   VPS_SSH_KEY  private key (the public key goes to ~/.ssh/authorized_keys on the server)
+name: Deploy API + admin
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+      - run: npm run build:admin
+
+      - name: Upload and restart
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          HOST: ${{ secrets.VPS_HOST }}
+          USER: ${{ secrets.VPS_USER }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+          SSH="ssh -i ~/.ssh/id_deploy"
+          rsync -az --delete -e "$SSH" admin/dist/ "$USER@$HOST:/var/www/matos-admin/"
+          # The database (server/data) and secrets (server/.env) on the server are never touched.
+          rsync -az --delete -e "$SSH" \
+            --exclude '.git' --exclude 'node_modules' --exclude 'dist' --exclude 'admin/dist' \
+            --exclude 'server/data' --exclude '.env' --exclude 'server/.env' \
+            ./ "$USER@$HOST:/opt/matos/"
+          $SSH "$USER@$HOST" 'sudo systemctl restart matos-api && sleep 2 && curl -fsS http://127.0.0.1:8080/api/health'

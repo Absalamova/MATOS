@@ -1,31 +1,13 @@
-import React, { lazy, Suspense, useEffect, useState } from 'react';
+import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
-// Admin / seller panel lives at #/admin and is loaded only when opened.
-const AdminPanel = lazy(() => import('./components/AdminPanel.tsx'));
-
-const isAdminHash = () => window.location.hash.startsWith('#/admin');
-
-function Root() {
-  const [isAdmin, setIsAdmin] = useState(isAdminHash);
-  useEffect(() => {
-    const onHash = () => setIsAdmin(isAdminHash());
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  }, []);
-  return isAdmin ? (
-    <Suspense fallback={<div className="p-10 text-center text-graphite">MATOS…</div>}>
-      <AdminPanel />
-    </Suspense>
-  ) : (
-    <App />
-  );
-}
+// The seller panel is a separate app now (admin/ → admin.matos.uz). Old #/admin links land on the home page.
+if (window.location.hash.startsWith('#/admin')) window.history.replaceState(null, '', window.location.pathname + window.location.search);
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <Root />
+    <App />
   </React.StrictMode>,
 );

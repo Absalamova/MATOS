@@ -1,0 +1,8 @@
+node_modules
+dist
+admin/dist
+server/data
+.git
+.env*
+public
+src

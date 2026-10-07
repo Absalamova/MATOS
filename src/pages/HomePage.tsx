@@ -6,7 +6,6 @@ import { L, UI } from '../lib/i18n';
 import { asset, formatMoney, formatNumber, pricePerUnit } from '../lib/format';
 import { ProductCard } from '../components/ProductCard';
 import { FabricImage } from '../components/ui/FabricImage';
-import { loadTailors } from '../lib/tailors';
 import { specialtyFor } from '../data/tailors';
 import { GARMENTS } from '../data/garments';
 import { ColorOption, Fabric } from '../types';
@@ -21,9 +20,17 @@ function SwatchBook() {
       const f = fabrics.find((x) => x.colors.some((c) => c.id === id));
       if (f) pick.push({ f, c: f.colors.find((c) => c.id === id)! });
     }
+    // Fill up with other colourways when the seller changed the range.
+    for (const f of fabrics) {
+      for (const c of f.colors) {
+        if (pick.length >= order.length) break;
+        if (!pick.some((p) => p.c.id === c.id)) pick.push({ f, c });
+      }
+    }
     return pick;
   }, [fabrics]);
-  const [active, setActive] = useState(3);
+  const [activeRaw, setActive] = useState(3);
+  const active = Math.min(activeRaw, Math.max(0, strips.length - 1));
 
   return (
     <div className="flex h-[420px] gap-[3px] sm:h-[520px] lg:h-[600px]" role="list" aria-label={t(L('Matolar namunasi', 'Образцы тканей', 'Fabric samples'))}>
@@ -57,8 +64,11 @@ function SwatchBook() {
 }
 
 export function HomePage({ route }: { route: Route }) {
-  const { t, lang, fabrics, open } = useApp();
-  const tailors = useMemo(() => loadTailors().filter((x) => x.rating).slice(0, 3), []);
+  const { t, lang, fabrics, open, tailors: allTailors, settings } = useApp();
+  const tailors = useMemo(() => {
+    const rated = allTailors.filter((x) => x.rating);
+    return (rated.length >= 3 ? rated : allTailors).slice(0, 3);
+  }, [allTailors]);
   const colorways = fabrics.reduce((n, f) => n + f.colors.length, 0);
 
   useEffect(() => {
@@ -123,9 +133,9 @@ export function HomePage({ route }: { route: Route }) {
           </div>
           <p className="tabular mt-8 text-[13.5px] text-muted">
             {t(L(
-              `${fabrics.length} mato · ${colorways} rang · ${formatNumber(loadTailors().length, lang)} atelye`,
-              `${fabrics.length} тканей · ${colorways} цветов · ${formatNumber(loadTailors().length, lang)} ателье`,
-              `${fabrics.length} fabrics · ${colorways} colourways · ${formatNumber(loadTailors().length, lang)} ateliers`,
+              `${fabrics.length} mato · ${colorways} rang · ${formatNumber(allTailors.length, lang)} atelye`,
+              `${fabrics.length} тканей · ${colorways} цветов · ${formatNumber(allTailors.length, lang)} ателье`,
+              `${fabrics.length} fabrics · ${colorways} colourways · ${formatNumber(allTailors.length, lang)} ateliers`,
             ))}
           </p>
         </div>
@@ -194,7 +204,15 @@ export function HomePage({ route }: { route: Route }) {
             <ul className="mt-6 space-y-3 text-[15.5px]">
               <li>{t(L('5 tagacha 10×10 sm bo‘lak — bepul.', 'До 5 отрезов 10×10 см — бесплатно.', 'Up to five 10×10 cm cuttings — free.'))}</li>
               <li>{t(L('Toshkent bo‘ylab 1–2 kunda, viloyatlarga 3–4 kunda.', 'По Ташкенту за 1–2 дня, в регионы за 3–4 дня.', 'Tashkent in 1–2 days, other regions in 3–4.'))}</li>
-              <li>{t(L('1 mln so‘mdan ortiq xaridda mato yetkazish ham bepul.', 'При покупке от 1 млн сум доставка ткани тоже бесплатна.', 'Fabric delivery is free on orders over 1 million UZS.'))}</li>
+              {settings.freeDeliveryFromUZS > 0 && (
+                <li>
+                  {t(L(
+                    `${formatMoney(settings.freeDeliveryFromUZS, 'UZS', 'uz')}dan ortiq xaridda mato yetkazish ham bepul.`,
+                    `При покупке от ${formatMoney(settings.freeDeliveryFromUZS, 'UZS', 'ru')} доставка ткани тоже бесплатна.`,
+                    `Fabric delivery is free on orders over ${formatMoney(settings.freeDeliveryFromUZS, 'UZS', 'en')}.`,
+                  ))}
+                </li>
+              )}
             </ul>
             <a className="btn btn-primary mt-8" href={href('catalog')}>{t(L('Namunalarni tanlash', 'Выбрать образцы', 'Choose samples'))}</a>
           </div>

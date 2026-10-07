@@ -1,16 +1,26 @@
-/** localStorage keys — shared with the admin panel (src/components/AdminPanel.tsx). */
+/** Browser storage for per-visitor conveniences only. Orders, accounts and the catalog live on the API server. */
 export const KEYS = {
-  users: 'matos_users',
-  currentUser: 'matos_current_user',
+  token: 'matos_token',
+  user: 'matos_user',
   cart: 'matos_cart',
   swatchBox: 'matos_swatch_box',
   prefs: 'matos_prefs',
-  orders: 'matos_orders',
-  swatchRequests: 'matos_swatch_requests',
-  tailors: 'matos_tailors',
-  fabricOverrides: 'matos_admin_fabrics',
   measurements: 'matos_measurements',
+  catalogCache: 'matos_catalog_cache',
+  tailorsCache: 'matos_tailors_cache',
 } as const;
+
+/** Keys from the old browser-only demo (it even kept passwords here). Removed on first load. */
+const LEGACY = [
+  'matos_users',
+  'matos_current_user',
+  'matos_orders',
+  'matos_swatch_requests',
+  'matos_tailors',
+  'matos_admin_fabrics',
+  'matos_admin_custom_fabrics',
+  'matos_admin_auth',
+];
 
 export function load<T>(key: string, fallback: T): T {
   try {
@@ -35,4 +45,8 @@ export function remove(key: string) {
   } catch {
     /* ignore */
   }
+}
+
+export function clearLegacy() {
+  LEGACY.forEach(remove);
 }

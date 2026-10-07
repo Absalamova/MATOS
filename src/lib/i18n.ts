@@ -3,7 +3,8 @@ import { Language, Localized } from '../types';
 export const L = (uz: string, ru: string, en: string): Localized => ({ uz, ru, en });
 
 export type T = (s: Localized) => string;
-export const makeT = (lang: Language): T => (s) => s[lang] ?? s.uz;
+/** Missing translations fall back to Uzbek. */
+export const makeT = (lang: Language): T => (s) => s?.[lang] || s?.uz || '';
 
 /** Strings used in more than one place. */
 export const UI = {
