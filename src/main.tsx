@@ -1,18 +1,31 @@
-import {useEffect, useState} from 'react';
-import {createRoot} from 'react-dom/client';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
+import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
-import AdminPanel from './components/AdminPanel.tsx';
 import './index.css';
 
-// Admin panel: #/admin manzilida ochiladi
+// Admin / seller panel lives at #/admin and is loaded only when opened.
+const AdminPanel = lazy(() => import('./components/AdminPanel.tsx'));
+
+const isAdminHash = () => window.location.hash.startsWith('#/admin');
+
 function Root() {
-  const [isAdmin, setIsAdmin] = useState(() => window.location.hash.startsWith('#/admin'));
+  const [isAdmin, setIsAdmin] = useState(isAdminHash);
   useEffect(() => {
-    const onHash = () => setIsAdmin(window.location.hash.startsWith('#/admin'));
+    const onHash = () => setIsAdmin(isAdminHash());
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
-  return isAdmin ? <AdminPanel /> : <App />;
+  return isAdmin ? (
+    <Suspense fallback={<div className="p-10 text-center text-graphite">MATOS…</div>}>
+      <AdminPanel />
+    </Suspense>
+  ) : (
+    <App />
+  );
 }
 
-createRoot(document.getElementById('root')!).render(<Root />);
+createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <Root />
+  </React.StrictMode>,
+);

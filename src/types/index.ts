@@ -3,103 +3,90 @@ export type Currency = 'UZS' | 'USD' | 'EUR';
 export type UnitSystem = 'metric' | 'imperial';
 export type SizeStandard = 'INT' | 'EU' | 'US' | 'UK';
 
+export interface Localized {
+  uz: string;
+  ru: string;
+  en: string;
+}
+
+/** How the weave looks up close — drives procedural textures and the 3D material. */
+export type WeavePattern = 'plain' | 'gingham' | 'canvas' | 'ikat' | 'crepe' | 'jersey' | 'twill';
+
+export interface FabricPhotos {
+  swatch: string;
+  hang: string;
+  roll: string;
+  ruler: string;
+  /** Seamless 512px tile made from the ruler photo, used as the 3D texture. */
+  tile: string;
+}
+
 export interface ColorOption {
   id: string;
-  name: {
-    uz: string;
-    ru: string;
-    en: string;
-  };
+  name: Localized;
   hex: string;
   roughness: number;
   metalness: number;
   sheen?: number;
-  image?: string;
-  hangImage?: string;
-  rollImage?: string;
-  rulerImage?: string;
-  fabricId?: string;
+  photos?: FabricPhotos;
 }
+
+export type FabricCategory = 'linen' | 'silk' | 'wool' | 'cotton';
 
 export interface Fabric {
   id: string;
-  name: string;
-  category: 'linen-mid' | 'linen-heavy' | 'linen-organic' | 'milliy-silk' | 'wool-cashmere' | 'cotton-twill';
-  categoryLabel: {
-    uz: string;
-    ru: string;
-    en: string;
-  };
-  origin: string;
+  name: Localized;
+  category: FabricCategory;
+  categoryLabel: Localized;
+  organic: boolean;
+  pattern: WeavePattern;
+  origin: Localized;
+  seller: { name: string; city: Localized };
   weightCategory: 'light' | 'mid' | 'heavy';
   gsm: number;
   ozPerSqYd: number;
   widthCm: number;
   widthInches: number;
-  composition: {
-    uz: string;
-    ru: string;
-    en: string;
-  };
+  composition: Localized;
   priceUZS: number;
   priceUSD: number;
   priceEUR: number;
-  drapeFactor: number; // 1-10
-  drapeText: {
-    uz: string;
-    ru: string;
-    en: string;
-  };
+  /** 1 (stiff) … 10 (liquid) */
+  drapeFactor: number;
+  drapeText: Localized;
   certifications: string[];
-  shrinkageRate: number; // percentage, e.g. 2.5%
-  cssClass: string;
-  description: {
-    uz: string;
-    ru: string;
-    en: string;
-  };
+  shrinkageRate: number;
+  care: Localized;
+  description: Localized;
   colors: ColorOption[];
-  images?: {
-    swatch?: string;
-    hang?: string;
-    roll?: string;
-    ruler?: string;
-    [key: string]: string | undefined;
-  };
-  featuredImage?: string;
+  /** Garment type keys this fabric suits best (used for recommendations). */
+  bestFor: GarmentTypeKey[];
 }
+
+export type GarmentTypeKey =
+  | 'slip_dress'
+  | 'evening_gown'
+  | 'blazer'
+  | 'trench'
+  | 'kimono'
+  | 'jumpsuit'
+  | 'shirt'
+  | 'pleated_dress'
+  | 'one_shoulder_gown'
+  | 'strapless_cocktail'
+  | 'mondrian_dress';
 
 export interface GarmentSilhouette {
   id: string;
-  name: {
-    uz: string;
-    ru: string;
-    en: string;
-  };
-  typeKey:
-    | 'slip_dress'
-    | 'evening_gown'
-    | 'blazer'
-    | 'trench'
-    | 'kimono'
-    | 'jumpsuit'
-    | 'shirt'
-    | 'pleated_dress'
-    | 'one_shoulder_gown'
-    | 'strapless_cocktail'
-    | 'mondrian_dress';
+  name: Localized;
+  typeKey: GarmentTypeKey;
+  group: 'dress' | 'outerwear' | 'top' | 'set';
   estimatedMeters: number;
   estimatedYards: number;
-  difficulty: {
-    uz: string;
-    ru: string;
-    en: string;
-  };
-  description: {
-    uz: string;
-    ru: string;
-    en: string;
-  };
+  /** Fabrics in this range sit best on the silhouette. */
+  fit: { minGsm: number; maxGsm: number; minDrape: number };
+  difficulty: Localized;
+  description: Localized;
 }
 
 export interface SavedMeasurements {
@@ -122,23 +109,25 @@ export interface User {
   registeredAt: string;
 }
 
+/** Cart lines are stored in metres and priced live from the catalog, so currency/unit switches stay correct. */
 export interface CartItem {
   id: string;
   fabricId: string;
-  fabricName: string;
-  color: ColorOption;
-  quantity: number; // in meters or yards
-  unit: 'm' | 'yd';
-  pricePerUnit: number;
-  totalPrice: number;
-  currency: Currency;
-  cssClass: string;
-  gsm: number;
-  width: string;
+  colorId: string;
+  meters: number;
+  garmentKey?: GarmentTypeKey;
 }
 
-export interface DrapePreset {
-  lighting: 'daylight' | 'atelier' | 'evening';
-  windSpeed: number;
-  viewAngle: 'front' | 'threeQuarter' | 'side' | 'back';
+export interface SwatchItem {
+  fabricId: string;
+  colorId: string;
+}
+
+export type LightingPreset = 'daylight' | 'atelier' | 'evening';
+
+export interface BodyMeasurements {
+  heightCm: number;
+  bustCm: number;
+  waistCm: number;
+  hipsCm: number;
 }
