@@ -1,0 +1,192 @@
+[
+  {
+    "title": "Heavyweight Linen - White",
+    "handle": "heavyweight-linen-white",
+    "images": {
+      "swatch": "/images/fabrics/heavyweight-linen-white/swatch.jpg",
+      "hang": "/images/fabrics/heavyweight-linen-white/hang.jpg",
+      "roll": "/images/fabrics/heavyweight-linen-white/roll.jpg",
+      "ruler": "/images/fabrics/heavyweight-linen-white/ruler.jpg"
+    }
+  },
+  {
+    "title": "Organic Linen - White",
+    "handle": "gots-organic-linen-white",
+    "images": {
+      "swatch": "/images/fabrics/gots-organic-linen-white/swatch.jpg",
+      "hang": "/images/fabrics/gots-organic-linen-white/hang.jpg",
+      "roll": "/images/fabrics/gots-organic-linen-white/roll.jpg",
+      "ruler": "/images/fabrics/gots-organic-linen-white/ruler.jpg"
+    }
+  },
+  {
+    "title": "Organic Linen - Black",
+    "handle": "gots-organic-linen-black",
+    "images": {
+      "swatch": "/images/fabrics/gots-organic-linen-black/swatch.jpg",
+      "hang": "/images/fabrics/gots-organic-linen-black/hang.jpg",
+      "roll": "/images/fabrics/gots-organic-linen-black/roll.jpg",
+      "ruler": "/images/fabrics/gots-organic-linen-black/ruler.jpg"
+    }
+  },
+  {
+    "title": "Bold Gingham Linen - Navy",
+    "handle": "bold-gingham-linen-navy",
+    "images": {
+      "swatch": "/images/fabrics/bold-gingham-linen-navy/swatch.jpg",
+      "hang": "/images/fabrics/bold-gingham-linen-navy/hang.jpg",
+      "roll": "/images/fabrics/bold-gingham-linen-navy/roll.jpg",
+      "ruler": "/images/fabrics/bold-gingham-linen-navy/ruler.jpg"
+    }
+  },
+  {
+    "title": "Organic Linen - Navy",
+    "handle": "gots-organic-linen-navy",
+    "images": {
+      "swatch": "/images/fabrics/gots-organic-linen-navy/swatch.jpg",
+      "hang": "/images/fabrics/gots-organic-linen-navy/hang.jpg",
+      "roll": "/images/fabrics/gots-organic-linen-navy/roll.jpg",
+      "ruler": "/images/fabrics/gots-organic-linen-navy/ruler.jpg"
+    }
+  },
+  {
+    "title": "Organic Linen - Vintage Blush",
+    "handle": "gots-organic-linen-vintage-blush",
+    "images": {
+      "swatch": "/images/fabrics/gots-organic-linen-vintage-blush/swatch.jpg",
+      "hang": "/images/fabrics/gots-organic-linen-vintage-blush/hang.jpg",
+      "roll": "/images/fabrics/gots-organic-linen-vintage-blush/roll.jpg",
+      "ruler": "/images/fabrics/gots-organic-linen-vintage-blush/ruler.jpg"
+    }
+  },
+  {
+    "title": "Plain Weave Linen - Cinnamon Stick",
+    "handle": "plain-weave-linen-cinnamon-stick",
+    "images": {
+      "swatch": "/images/fabrics/plain-weave-linen-cinnamon-stick/swatch.jpg",
+      "hang": "/images/fabrics/plain-weave-linen-cinnamon-stick/hang.jpg",
+      "roll": "/images/fabrics/plain-weave-linen-cinnamon-stick/roll.jpg",
+      "ruler": "/images/fabrics/plain-weave-linen-cinnamon-stick/ruler.jpg"
+    }
+  },
+  {
+    "title": "Organic Linen - Hollyhock",
+    "handle": "organic-linen-hollyhock",
+    "images": {
+      "swatch": "/images/fabrics/organic-linen-hollyhock/swatch.jpg",
+      "hang": "/images/fabrics/organic-linen-hollyhock/hang.jpg",
+      "roll": "/images/fabrics/organic-linen-hollyhock/roll.jpg",
+      "ruler": "/images/fabrics/organic-linen-hollyhock/ruler.jpg"
+    }
+  },
+  {
+    "title": "Plain Weave Linen - Iron",
+    "handle": "plain-weave-linen-iron",
+    "images": {
+      "swatch": "/images/fabrics/plain-weave-linen-iron/swatch.jpg",
+      "hang": "/images/fabrics/plain-weave-linen-iron/hang.jpg",
+      "roll": "/images/fabrics/plain-weave-linen-iron/roll.jpg",
+      "ruler": "/images/fabrics/plain-weave-linen-iron/ruler.jpg"
+    }
+  },
+  {
+    "title": "Organic Linen - Daffodil",
+    "handle": "gots-organic-linen-daffodil",
+    "images": {
+      "swatch": "/images/fabrics/gots-organic-linen-daffodil/swatch.jpg",
+      "hang": "/images/fabrics/gots-organic-linen-daffodil/hang.jpg",
+      "roll": "/images/fabrics/gots-organic-linen-daffodil/roll.jpg",
+      "ruler": "/images/fabrics/gots-organic-linen-daffodil/ruler.jpg"
+    }
+  },
+  {
+    "title": "Organic Linen - Glacier",
+    "handle": "gots-organic-linen-glacier",
+    "images": {
+      "swatch": "/images/fabrics/gots-organic-linen-glacier/swatch.jpg",
+      "hang": "/images/fabrics/gots-organic-linen-glacier/hang.jpg",
+      "roll": "/images/fabrics/gots-organic-linen-glacier/roll.jpg",
+      "ruler": "/images/fabrics/gots-organic-linen-glacier/ruler.jpg"
+    }
+  },
+  {
+    "title": "Heavyweight Linen - Fog",
+    "handle": "heavyweight-linen-fog",
+    "images": {
+      "swatch": "/images/fabrics/heavyweight-linen-fog/swatch.jpg",
+      "hang": "/images/fabrics/heavyweight-linen-fog/hang.jpg",
+      "roll": "/images/fabrics/heavyweight-linen-fog/roll.jpg",
+      "ruler": "/images/fabrics/heavyweight-linen-fog/ruler.jpg"
+    }
+  },
+  {
+    "title": "Organic Linen - Fog",
+    "handle": "gots-organic-linen-fog",
+    "images": {
+      "swatch": "/images/fabrics/gots-organic-linen-fog/swatch.jpg",
+      "hang": "/images/fabrics/gots-organic-linen-fog/hang.jpg",
+      "roll": "/images/fabrics/gots-organic-linen-fog/roll.jpg",
+      "ruler": "/images/fabrics/gots-organic-linen-fog/ruler.jpg"
+    }
+  },
+  {
+    "title": "Plain Weave Linen - White",
+    "handle": "plain-weave-linen-white-1",
+    "images": {
+      "swatch": "/images/fabrics/plain-weave-linen-white-1/swatch.jpg",
+      "hang": "/images/fabrics/plain-weave-linen-white-1/hang.jpg",
+      "roll": "/images/fabrics/plain-weave-linen-white-1/roll.jpg",
+      "ruler": "/images/fabrics/plain-weave-linen-white-1/ruler.jpg"
+    }
+  },
+  {
+    "title": "Organic Linen - Slate",
+    "handle": "organic-linen-slate",
+    "images": {
+      "swatch": "/images/fabrics/organic-linen-slate/swatch.jpg",
+      "hang": "/images/fabrics/organic-linen-slate/hang.jpg",
+      "roll": "/images/fabrics/organic-linen-slate/roll.jpg",
+      "ruler": "/images/fabrics/organic-linen-slate/ruler.jpg"
+    }
+  },
+  {
+    "title": "Plain Weave Linen - Apple",
+    "handle": "plain-weave-linen-apple",
+    "images": {
+      "swatch": "/images/fabrics/plain-weave-linen-apple/swatch.jpg",
+      "hang": "/images/fabrics/plain-weave-linen-apple/hang.jpg",
+      "roll": "/images/fabrics/plain-weave-linen-apple/roll.jpg",
+      "ruler": "/images/fabrics/plain-weave-linen-apple/ruler.jpg"
+    }
+  },
+  {
+    "title": "Plain Weave Linen - Lemonade",
+    "handle": "plain-weave-linen-lemonade",
+    "images": {
+      "swatch": "/images/fabrics/plain-weave-linen-lemonade/swatch.jpg",
+      "hang": "/images/fabrics/plain-weave-linen-lemonade/hang.jpg",
+      "roll": "/images/fabrics/plain-weave-linen-lemonade/roll.jpg",
+      "ruler": "/images/fabrics/plain-weave-linen-lemonade/ruler.jpg"
+    }
+  },
+  {
+    "title": "Linen/Cotton Canvas - White",
+    "handle": "linen-cotton-canvas-white",
+    "images": {
+      "swatch": "/images/fabrics/linen-cotton-canvas-white/swatch.jpg",
+      "hang": "/images/fabrics/linen-cotton-canvas-white/hang.jpg",
+      "roll": "/images/fabrics/linen-cotton-canvas-white/roll.jpg",
+      "ruler": "/images/fabrics/linen-cotton-canvas-white/ruler.jpg"
+    }
+  },
+  {
+    "title": "Plain Weave Linen - Navy",
+    "handle": "plain-weave-linen-navy",
+    "images": {
+      "swatch": "/images/fabrics/plain-weave-linen-navy/swatch.jpg",
+      "hang": "/images/fabrics/plain-weave-linen-navy/hang.jpg",
+      "roll": "/images/fabrics/plain-weave-linen-navy/roll.jpg",
+      "ruler": "/images/fabrics/plain-weave-linen-navy/ruler.jpg"
+    }
+  }
+]

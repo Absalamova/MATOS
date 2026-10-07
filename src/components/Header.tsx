@@ -15,8 +15,8 @@ interface HeaderProps {
   onOpenAuth: () => void;
   onOpenProfile: () => void;
   onLogout: () => void;
-  activeSection?: 'catalog' | 'studio3d' | 'tailors';
-  onNavigate?: (section: 'catalog' | 'studio3d' | 'tailors') => void;
+  activeSection?: 'home' | 'catalog' | 'studio3d' | 'tailors';
+  onNavigate?: (section: 'home' | 'catalog' | 'studio3d' | 'tailors') => void;
   onOpenVisualSearch?: () => void;
 }
 
@@ -33,7 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAuth,
   onOpenProfile,
   onLogout,
-  activeSection = 'catalog',
+  activeSection = 'home',
   onNavigate,
   onOpenVisualSearch,
 }) => {
@@ -64,69 +64,16 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <>
-      {/* Top Global Utility Announcement Ribbon */}
-      <div className="bg-[#181412] text-[#D8CFBF] text-[11px] py-2 px-4 border-b border-[#2C241E]">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-            <span className="font-bold tracking-wider uppercase text-[10px] text-white">
-              {currentLang === 'uz' ? 'Global Atelier Standarti' : currentLang === 'ru' ? 'Глобальный Стандарт Ателье' : 'Global Haute Atelier'}
-            </span>
-            <span className="hidden md:inline text-[#6B5E52]">•</span>
-            <span className="hidden md:inline text-[#A89D8E]">
-              {currentLang === 'uz'
-                ? 'OEKO-TEX 100 & GOTS Sertifikatlangan To‘qimalar • Bepul Swatch Namunalari'
-                : currentLang === 'ru'
-                ? 'Сертифицированные ткани GOTS & OEKO-TEX 100 • Бесплатные образцы'
-                : 'Certified GOTS & OEKO-TEX 100 Textiles • Global Express Doorstep Swatches'}
-            </span>
-          </div>
-
-          {/* Unit & Currency Global Selectors */}
-          <div className="flex items-center gap-3 text-xs">
-            {/* Metric / Imperial Unit Toggle */}
-            <button
-              onClick={onToggleUnit}
-              className="text-[#D8CFBF] hover:text-white font-mono text-[11px] uppercase tracking-wider px-2 py-0.5 rounded border border-[#382F27] bg-[#221B17] transition"
-              title="O‘lchov birligini almashtirish (M / YD)"
-            >
-              {unit === 'metric' ? 'M / CM' : 'YD / IN'}
-            </button>
-
-            {/* Currency Selector */}
-            <div className="flex items-center gap-1 font-mono text-[11px] text-[#A89D8E]">
-              <button
-                onClick={() => onSelectCurrency('UZS')}
-                className={`px-1.5 py-0.5 rounded transition ${currency === 'UZS' ? 'text-white font-bold bg-[#382F27]' : 'hover:text-white'}`}
-              >
-                UZS
-              </button>
-              <span>/</span>
-              <button
-                onClick={() => onSelectCurrency('USD')}
-                className={`px-1.5 py-0.5 rounded transition ${currency === 'USD' ? 'text-white font-bold bg-[#382F27]' : 'hover:text-white'}`}
-              >
-                USD
-              </button>
-              <span>/</span>
-              <button
-                onClick={() => onSelectCurrency('EUR')}
-                className={`px-1.5 py-0.5 rounded transition ${currency === 'EUR' ? 'text-white font-bold bg-[#382F27]' : 'hover:text-white'}`}
-              >
-                EUR
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Top Bar (Compliant with Top Bar Contract: Brand, Clean Nav, Actions) */}
+      {/* Main Top Bar */}
       <header className="sticky top-0 z-40 bg-[#F9F7F2]/95 backdrop-blur-md border-b border-[#E6DFD3] transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
           
           {/* Zone 1: Single text element wordmark */}
-          <a href="#" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-[#1C1714] flex items-center justify-center text-[#F9F7F2] font-serif font-black text-xl group-hover:bg-[#B85D3B] transition-all duration-300">
+          <button
+            onClick={() => onNavigate?.('home')}
+            className="flex items-center gap-3 group text-left cursor-pointer bg-transparent border-0 p-0"
+          >
+            <div className="w-10 h-10 rounded-xl bg-[#1C1714] flex items-center justify-center text-[#F9F7F2] font-serif font-black text-xl group-hover:bg-[#B85D3B] transition-all duration-300 shadow-xs">
               m
             </div>
             <div className="flex flex-col">
@@ -137,12 +84,22 @@ export const Header: React.FC<HeaderProps> = ({
                 haute fabrics
               </span>
             </div>
-          </a>
+          </button>
 
-          {/* Zone 2: Clean Typography Navigation Links WITHOUT redundant icons */}
-          <nav className="hidden md:flex items-center gap-6 lg:gap-8 text-xs font-bold uppercase tracking-wider text-[#4A3F35]">
+          {/* Zone 2: Clean Typography Navigation Links */}
+          <nav className="hidden md:flex items-center gap-5 lg:gap-8 text-xs font-bold uppercase tracking-wider text-[#4A3F35]">
             <button
-              onClick={() => (onNavigate ? onNavigate('catalog') : window.location.assign('#catalog'))}
+              onClick={() => onNavigate?.('home')}
+              className={`transition py-1 cursor-pointer ${
+                activeSection === 'home'
+                  ? 'text-[#B85D3B] border-b-2 border-[#B85D3B] font-extrabold'
+                  : 'hover:text-[#B85D3B]'
+              }`}
+            >
+              {currentLang === 'uz' ? 'Bosh Sahifa' : currentLang === 'ru' ? 'Главная' : 'Home'}
+            </button>
+            <button
+              onClick={() => onNavigate?.('catalog')}
               className={`transition py-1 cursor-pointer ${
                 activeSection === 'catalog'
                   ? 'text-[#B85D3B] border-b-2 border-[#B85D3B] font-extrabold'
@@ -152,17 +109,18 @@ export const Header: React.FC<HeaderProps> = ({
               {currentLang === 'uz' ? 'Matolar Katalogi' : currentLang === 'ru' ? 'Каталог Тканей' : 'Fabric Catalog'}
             </button>
             <button
-              onClick={() => (onNavigate ? onNavigate('studio3d') : window.location.assign('#studio3d'))}
-              className={`transition py-1 cursor-pointer ${
+              onClick={() => onNavigate?.('studio3d')}
+              className={`transition py-1 cursor-pointer flex items-center gap-1.5 ${
                 activeSection === 'studio3d'
                   ? 'text-[#B85D3B] border-b-2 border-[#B85D3B] font-extrabold'
                   : 'hover:text-[#B85D3B]'
               }`}
             >
-              {currentLang === 'uz' ? '3D Atelye Studiyasi' : currentLang === 'ru' ? '3D Ателье Студия' : '3D Drape Studio'}
+              <span>{currentLang === 'uz' ? '3D Drape Studiyasi' : currentLang === 'ru' ? '3D Ателье Студия' : '3D Drape Studio'}</span>
+              <span className="bg-[#B85D3B] text-white text-[9px] px-1.5 py-0.2 rounded-full font-mono font-bold">3D</span>
             </button>
             <button
-              onClick={() => (onNavigate ? onNavigate('tailors') : window.location.assign('#tailors'))}
+              onClick={() => onNavigate?.('tailors')}
               className={`transition py-1 cursor-pointer ${
                 activeSection === 'tailors'
                   ? 'text-[#B85D3B] border-b-2 border-[#B85D3B] font-extrabold'
@@ -190,34 +148,44 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            {/* Flag-Only Language Switcher (Clean, strictly flags) */}
+            {/* Flag & Currency Language Switcher */}
             <div className="relative" ref={langRef}>
               <button
                 onClick={() => setLangMenuOpen(!langMenuOpen)}
-                className="w-10 h-10 rounded-xl bg-white border border-[#DDD5C7] flex items-center justify-center text-lg hover:border-[#B85D3B] transition shadow-xs"
-                title="Tilni tanlash / Выбрать язык / Select Language"
+                className="h-10 px-2.5 rounded-xl bg-white border border-[#DDD5C7] flex items-center gap-1.5 text-base hover:border-[#B85D3B] transition shadow-xs cursor-pointer"
+                title="Til & Valyuta / Language & Currency"
                 aria-label="Language selector"
               >
                 <span>{flagMap[currentLang]}</span>
+                <span className="font-mono text-xs font-bold text-[#65594C] uppercase">{currentLang}</span>
               </button>
 
               {langMenuOpen && (
-                <div className="absolute right-0 mt-2 w-32 bg-white rounded-2xl shadow-xl border border-[#DDD5C7] py-2 z-50 flex flex-col gap-1">
-                  {(['uz', 'ru', 'en'] as Language[]).map((code) => (
-                    <button
-                      key={code}
-                      onClick={() => {
-                        onSelectLang(code);
-                        setLangMenuOpen(false);
-                      }}
-                      className={`flex items-center justify-between px-3.5 py-2 text-xs transition ${
-                        currentLang === code ? 'bg-[#F4EFEB] font-bold text-[#1C1714]' : 'text-[#65594C] hover:bg-[#FAF7F2]'
-                      }`}
-                    >
-                      <span className="text-xl">{flagMap[code]}</span>
-                      <span className="font-mono uppercase text-[11px]">{code}</span>
-                    </button>
-                  ))}
+                <div className="absolute right-0 mt-2 w-44 bg-white rounded-2xl shadow-xl border border-[#DDD5C7] py-2 z-50 flex flex-col gap-1">
+                  {(['uz', 'ru', 'en'] as Language[]).map((code) => {
+                    const currLabel = code === 'en' ? 'USD ($)' : "So'm (UZS)";
+                    const langLabel = code === 'uz' ? "O'zbek" : code === 'ru' ? 'Русский' : 'English';
+                    return (
+                      <button
+                        key={code}
+                        onClick={() => {
+                          onSelectLang(code);
+                          setLangMenuOpen(false);
+                        }}
+                        className={`flex items-center justify-between px-3.5 py-2.5 text-xs transition cursor-pointer ${
+                          currentLang === code ? 'bg-[#F4EFEB] font-bold text-[#1C1714]' : 'text-[#65594C] hover:bg-[#FAF7F2]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{flagMap[code]}</span>
+                          <span className="font-medium text-[#1C1714]">{langLabel}</span>
+                        </div>
+                        <span className="font-mono text-[10px] text-[#B85D3B] font-bold bg-[#FAF2EB] px-1.5 py-0.5 rounded">
+                          {currLabel}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>

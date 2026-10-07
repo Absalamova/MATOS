@@ -14,6 +14,11 @@ export interface ColorOption {
   roughness: number;
   metalness: number;
   sheen?: number;
+  image?: string;
+  hangImage?: string;
+  rollImage?: string;
+  rulerImage?: string;
+  fabricId?: string;
 }
 
 export interface Fabric {
@@ -54,6 +59,14 @@ export interface Fabric {
     en: string;
   };
   colors: ColorOption[];
+  images?: {
+    swatch?: string;
+    hang?: string;
+    roll?: string;
+    ruler?: string;
+    [key: string]: string | undefined;
+  };
+  featuredImage?: string;
 }
 
 export interface GarmentSilhouette {
