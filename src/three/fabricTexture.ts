@@ -35,12 +35,15 @@ function canvas(size: number) {
 }
 
 /** Normal map from the luminance of a canvas (Sobel), wrapping at the edges. */
-function normalFromCanvas(src: HTMLCanvasElement, strength: number) {
+function normalFromCanvas(src: HTMLCanvasElement, strength: number, highPass = 0) {
   const w = src.width;
   const h = src.height;
   const data = src.getContext('2d')!.getImageData(0, 0, w, h).data;
-  const lum = new Float32Array(w * h);
+  let lum = new Float32Array(w * h);
   for (let i = 0; i < w * h; i++) lum[i] = (data[i * 4] * 0.299 + data[i * 4 + 1] * 0.587 + data[i * 4 + 2] * 0.114) / 255;
+  // On photos the print itself (ikat motifs, checks) changes brightness; keep only the fine
+  // weave relief, otherwise printed motifs look embossed like a quilt.
+  if (highPass > 0) lum = subtractBlur(lum, w, h, highPass);
   const out = canvas(w);
   const ctx = out.getContext('2d')!;
   const img = ctx.createImageData(w, h);
@@ -59,6 +62,30 @@ function normalFromCanvas(src: HTMLCanvasElement, strength: number) {
     }
   }
   ctx.putImageData(img, 0, 0);
+  return out;
+}
+
+/** lum minus its box blur (radius px, wrapping): removes large-scale brightness changes. */
+function subtractBlur(lum: Float32Array, w: number, h: number, radius: number) {
+  const n = radius * 2 + 1;
+  const tmp = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    let s = 0;
+    for (let k = -radius; k <= radius; k++) s += lum[y * w + ((k + w) % w)];
+    for (let x = 0; x < w; x++) {
+      tmp[y * w + x] = s / n;
+      s += lum[y * w + ((x + radius + 1) % w)] - lum[y * w + ((x - radius + w) % w)];
+    }
+  }
+  const out = new Float32Array(w * h);
+  for (let x = 0; x < w; x++) {
+    let s = 0;
+    for (let k = -radius; k <= radius; k++) s += tmp[((k + h) % h) * w + x];
+    for (let y = 0; y < h; y++) {
+      out[y * w + x] = lum[y * w + x] - s / n + 0.5;
+      s += tmp[((y + radius + 1) % h) * w + x] - tmp[((y - radius + h) % h) * w + x];
+    }
+  }
   return out;
 }
 
@@ -116,7 +143,7 @@ async function photoMaps(url: string, hex: string): Promise<FabricMaps> {
     d[i + 2] = Math.min(255, d[i + 2] * kb);
   }
   ctx.putImageData(id, 0, 0);
-  const nm = normalFromCanvas(c, 2.2);
+  const nm = normalFromCanvas(c, 2.2, 6);
   return { map: toTexture(c, true), normalMap: toTexture(nm, false), tileMeters: 0.08 };
 }
 

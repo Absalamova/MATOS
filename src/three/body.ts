@@ -217,18 +217,31 @@ export class Body {
         zf: L.r * 1.02 + (top.zf - L.r * 1.02) * blend,
         zb: L.r * 1.06 + (top.zb - L.r * 1.06) * blend,
         lobe: 0,
+        // keep the hip squareness continuous across the crotch: a jump here moves every
+        // garment column sideways and crumples hanging skirts into ridges
+        n: 2 + ((top.n ?? 2) - 2) * blend,
       };
       Body.sectionPoint(s, theta, 'none', out);
     }
-    // below the crotch the two thighs are wider than the envelope ellipse diagonally
+    // Below the crotch the fabric must still clear both thighs. The thighs together form a
+    // "stadium" (convex hull of two circles); use its true radial distance. (Using the support
+    // function here instead overshoots diagonally and puts two lumps on the front of the hips.)
     const w = smooth(this.torsoBottom + 0.02, this.torsoBottom - 0.05, y);
     if (w > 0) {
       const L = this.leg(Math.min(y, this.at(0.84)));
       const r = out.length() || 1;
-      const support = L.x * (Math.abs(out.x) / r) + L.r * 1.03;
-      if (support > r) out.multiplyScalar(1 + ((support - r) / r) * w);
+      const need = Body.stadiumRadius(L.x, L.r * 1.03, out.x / r, out.y / r);
+      if (need > r) out.multiplyScalar(1 + ((need - r) / r) * w);
     }
     return out;
+  }
+
+  /** Distance from the centre to the edge of the convex hull of two circles (±a, 0) of radius r, along (c, s). */
+  static stadiumRadius(a: number, r: number, c: number, s: number) {
+    const ac = Math.abs(c);
+    const as = Math.abs(s);
+    if (as > 1e-6 && (r / as) * ac <= a) return r / as;
+    return a * ac + Math.sqrt(Math.max(0, r * r - a * a * s * s));
   }
 
   /** Outer x of the shoulder ball at height y (0 outside its range). */
@@ -237,10 +250,33 @@ export class Body {
     const cy = this.at(1.365);
     const r = 0.05 * this.armRScale * 1.04 + 0.006;
     const dy = y - cy;
-    if (Math.abs(dy) >= r) return 0;
     // below the ball centre the arm continues, keep the envelope wide down to the armpit
-    if (dy < 0 && y > this.at(1.3)) return cx + r * 0.95;
-    return cx + Math.sqrt(r * r - dy * dy);
+    if (dy < 0) {
+      // the arm continues below the ball: keep the envelope wide, then let it ease back into
+      // the torso over the armhole instead of stepping in (a boxy ledge on sleeved garments)
+      return (cx + r * 0.95) * smooth(this.at(1.24), this.at(1.34), y);
+    }
+    // Above it, fabric runs in a straight line from the base of the neck to the top of the
+    // shoulder ball (tangent), like a real shoulder seam, instead of following the ball's
+    // cap and leaving a horizontal shelf next to the neck.
+    const ny = this.at(1.46);
+    const nx = this.section(ny).rx + 0.004;
+    if (y >= ny) return 0;
+    const dx0 = cx - nx;
+    const dy0 = cy - ny;
+    const d = Math.hypot(dx0, dy0);
+    if (d <= r) return cx + Math.sqrt(Math.max(0, r * r - dy * dy));
+    const alpha = Math.asin(r / d);
+    const base = Math.atan2(dy0, dx0);
+    const len = Math.sqrt(d * d - r * r);
+    // the upper of the two tangent lines
+    const a1 = base + alpha;
+    const a2 = base - alpha;
+    const t1 = { x: nx + Math.cos(a1) * len, y: ny + Math.sin(a1) * len };
+    const t2 = { x: nx + Math.cos(a2) * len, y: ny + Math.sin(a2) * len };
+    const T = t1.y > t2.y ? t1 : t2;
+    if (y <= T.y) return cx + Math.sqrt(Math.max(0, r * r - dy * dy));
+    return nx + ((y - ny) * (T.x - nx)) / (T.y - ny);
   }
 
   arm(side: 1 | -1): LimbPath {

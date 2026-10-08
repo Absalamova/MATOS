@@ -22,7 +22,7 @@ interface Toast {
   action?: { label: string; run: () => void };
 }
 
-type Overlay = 'cart' | 'search' | 'auth' | 'profile' | 'menu' | null;
+type Overlay = 'cart' | 'search' | 'style' | 'auth' | 'profile' | 'menu' | null;
 
 interface AppValue extends Prefs {
   t: T;

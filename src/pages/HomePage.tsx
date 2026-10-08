@@ -127,6 +127,9 @@ export function HomePage({ route }: { route: Route }) {
             <button type="button" className="btn btn-primary" onClick={() => open('search')}>
               {t(UI.photoSearch)}
             </button>
+            <button type="button" className="btn btn-secondary" onClick={() => open('style')}>
+              {t(UI.styleAdvisor)}
+            </button>
             <a className="btn btn-secondary" href={href('catalog')}>
               {t(L('Katalogni ko‘rish', 'Смотреть каталог', 'Browse the catalog'))}
             </a>

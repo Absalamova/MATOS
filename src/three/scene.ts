@@ -373,7 +373,8 @@ export class StudioScene {
     const extraTex: THREE.Texture[] = [];
     if (o.garment === 'mondrian_dress') {
       const tex = mondrianMap(o.color.hex);
-      tex.offset.set(0, -0.5);
+      // u = 0 is the centre front; the layout was drawn with the front at u ≈ 0.5
+      tex.offset.set(0.5, -0.5);
       extraTex.push(tex);
       mats.mondrian = new THREE.MeshPhysicalMaterial({ map: tex, roughness: o.color.roughness, sheen: 0.35, sheenRoughness: 0.6, side: THREE.DoubleSide });
     }
