@@ -33,7 +33,7 @@ function SwatchBook() {
   const active = Math.min(activeRaw, Math.max(0, strips.length - 1));
 
   return (
-    <div className="flex h-[420px] gap-[3px] sm:h-[520px] lg:h-[600px]" role="list" aria-label={t(L('Matolar namunasi', 'Образцы тканей', 'Fabric samples'))}>
+    <div className="flex h-[min(420px,62svh)] gap-[3px] sm:h-[520px] lg:h-[600px] short:h-[300px]" role="list" aria-label={t(L('Matolar namunasi', 'Образцы тканей', 'Fabric samples'))}>
       {strips.map(({ f, c }, i) => {
         const on = i === active;
         return (
@@ -111,19 +111,19 @@ export function HomePage({ route }: { route: Route }) {
   return (
     <div>
       {/* Hero */}
-      <section className="wrap grid items-center gap-10 pt-10 sm:pt-14 lg:grid-cols-[1fr_1.25fr] lg:gap-14 lg:pt-16">
+      <section className="wrap grid items-center gap-10 pt-8 sm:pt-14 lg:grid-cols-[1fr_1.25fr] lg:gap-14 lg:pt-16 short:grid-cols-[1fr_1fr] short:gap-8 short:pt-8">
         <div className="max-w-xl">
-          <h1 className="text-[46px] leading-[1.02] sm:text-[64px] lg:text-[76px]">
+          <h1 className="text-[clamp(38px,12vw,46px)] leading-[1.02] sm:text-[64px] lg:text-[76px] short:text-[40px]">
             {t(L('Matoni tanlang. Ushlab ko‘ring. Kiyib ko‘ring.', 'Выберите ткань. Потрогайте. Примерьте.', 'Pick the fabric. Feel it. Try it on.'))}
           </h1>
-          <p className="mt-6 max-w-[52ch] text-[16.5px] leading-relaxed text-graphite">
+          <p className="mt-5 max-w-[52ch] text-[16px] leading-relaxed text-graphite sm:mt-6 sm:text-[16.5px] short:text-[15px]">
             {t(L(
               'Ijtimoiy tarmoqda ko‘rgan kiyimingizga mos matoni rasm orqali toping, bepul namuna oling, 3D manekenda o‘z o‘lchamingizda ko‘ring va tikuvchiga topshiring.',
               'Найдите ткань по фото наряда из соцсетей, закажите бесплатный образец, примерьте в 3D по своим меркам и отдайте портному.',
               'Find the fabric from a photo of an outfit you saw online, get a free sample, try the garment on in 3D in your size, and hand it to a tailor.',
             ))}
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-7 grid gap-3 sm:mt-8 sm:flex sm:flex-wrap">
             <button type="button" className="btn btn-primary" onClick={() => open('search')}>
               {t(UI.photoSearch)}
             </button>
@@ -146,11 +146,11 @@ export function HomePage({ route }: { route: Route }) {
       </section>
 
       {/* How it works */}
-      <section className="wrap mt-24 sm:mt-32" aria-labelledby="how">
-        <h2 id="how" className="max-w-2xl text-[34px] sm:text-[44px]">
+      <section className="wrap mt-20 sm:mt-32" aria-labelledby="how">
+        <h2 id="how" className="max-w-2xl text-[30px] sm:text-[44px]">
           {t(L('Rasmdan tayyor kiyimgacha — to‘rt qadam', 'От фото до готовой вещи — четыре шага', 'From a photo to a finished garment in four steps'))}
         </h2>
-        <ol className="mt-12 grid gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+        <ol className="mt-8 grid gap-px sm:mt-12 overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
           {steps.map((s, i) => (
             <li key={i} className="flex flex-col bg-paper p-6 sm:p-7">
               <span className="tabular font-display text-[40px] leading-none text-muted">{i + 1}</span>

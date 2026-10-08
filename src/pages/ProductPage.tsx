@@ -116,9 +116,9 @@ export function ProductPage({ route }: { route: Route }) {
         </nav>
       </div>
 
-      <div className="wrap mt-6 grid gap-10 lg:grid-cols-[1.15fr_1fr] lg:gap-16">
-        {/* Gallery */}
-        <div>
+      <div className="wrap mt-6 grid gap-10 md:grid-cols-2 md:gap-8 lg:grid-cols-[1.15fr_1fr] lg:gap-16">
+        {/* Gallery — stays in view beside the long buy box on tablets and desktops */}
+        <div className="md:sticky md:top-24 md:self-start">
           <div className="relative aspect-square overflow-hidden rounded-[6px] bg-well">
             <FabricImage key={`${color.id}-${view}`} fabric={fabric} color={color} kind={view} alt={`${t(fabric.name)}, ${t(color.name)}`} eager className="animate-fade" />
           </div>
@@ -229,9 +229,9 @@ export function ProductPage({ route }: { route: Route }) {
 
           <dl className="mt-10 divide-y divide-line border-y border-line">
             {specs.map(([k, v]) => (
-              <div key={k} className="grid grid-cols-[130px_1fr] gap-4 py-3.5 text-[14px] sm:grid-cols-[160px_1fr]">
+              <div key={k} className="grid grid-cols-[minmax(96px,35%)_1fr] gap-4 py-3.5 text-[14px] sm:grid-cols-[160px_1fr]">
                 <dt className="text-graphite">{k}</dt>
-                <dd>{v}</dd>
+                <dd className="min-w-0 break-words">{v}</dd>
               </div>
             ))}
           </dl>
@@ -290,15 +290,16 @@ export function ProductPage({ route }: { route: Route }) {
       )}
 
       {/* Mobile buy bar */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-paper/95 px-4 py-3 backdrop-blur lg:hidden" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
-        <div className="flex items-center gap-2">
+      <div data-bottom-bar="" className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-paper/95 px-4 py-3 backdrop-blur lg:hidden" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
+        <div className="mx-auto flex max-w-xl items-center gap-2">
           <button type="button" className={`icon-btn h-[46px] w-[46px] shrink-0 border ${sampled ? 'border-tape bg-tape' : 'border-line'}`} aria-pressed={sampled} aria-label={sampled ? t(UI.inSamples) : t(UI.samples)} onClick={() => toggleSample(fabric.id, color.id)}>
             {sampled ? <Check className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
           </button>
           <a className="btn btn-secondary shrink-0 px-4" href={studioLink()}>3D</a>
-          <button type="button" className="btn btn-primary flex-1 px-3" onClick={buy} disabled={soldOut}>
+          <button type="button" className="btn btn-primary min-w-0 flex-1 px-3" onClick={buy} disabled={soldOut}>
             <span className="truncate">{soldOut ? t(L('Tugagan', 'Нет в наличии', 'Sold out')) : t(UI.addToBag)}</span>
-            {!soldOut && <span className="tabular opacity-80">· {formatMoney(total, currency, lang)}</span>}
+            {/* the total is already shown above the bar; on narrow phones the label needs the room */}
+            {!soldOut && <span className="tabular shrink-0 opacity-80 max-[419px]:hidden">· {formatMoney(total, currency, lang)}</span>}
           </button>
         </div>
       </div>

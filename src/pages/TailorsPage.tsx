@@ -266,14 +266,14 @@ export function TailorsPage({ route }: { route: Route }) {
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
           <input type="search" className="field rounded-full pl-11" placeholder={t(L('Usta yoki atelye nomi', 'Имя мастера или ателье', 'Tailor or atelier name'))} value={query} onChange={(e) => setQuery(e.target.value)} />
         </label>
-        <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4" role="group" aria-label={t(L('Shahar', 'Город', 'City'))}>
+        <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:-mx-7 sm:px-7 lg:mx-0 lg:flex-wrap lg:px-0" role="group" aria-label={t(L('Shahar', 'Город', 'City'))}>
           {cities.map((c) => (
             <button key={c} type="button" className="chip" aria-pressed={city === c} onClick={() => setCity(c)}>
               {c === 'all' ? t(L('Barcha shaharlar', 'Все города', 'All cities')) : c}
             </button>
           ))}
         </div>
-        <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4" role="group" aria-label={t(L('Ixtisoslik', 'Специализация', 'Speciality'))}>
+        <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:-mx-7 sm:px-7 lg:mx-0 lg:flex-wrap lg:px-0" role="group" aria-label={t(L('Ixtisoslik', 'Специализация', 'Speciality'))}>
           <button type="button" className="chip" aria-pressed={spec === 'all'} onClick={() => setSpec('all')}>{t(L('Barcha yo‘nalishlar', 'Все направления', 'All kinds'))}</button>
           {SPECIALTIES.map((s) => (
             <button key={s.id} type="button" className="chip" aria-pressed={spec === s.id} onClick={() => setSpec(s.id)}>{t(s.label)}</button>
@@ -289,7 +289,7 @@ export function TailorsPage({ route }: { route: Route }) {
       ) : (
         <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {list.map((x) => (
-            <article key={x.id} className="flex flex-col rounded-xl border border-line p-6">
+            <article key={x.id} className="flex flex-col rounded-xl border border-line p-5 sm:p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="font-display text-[24px] leading-tight">{x.atelierName}</h2>

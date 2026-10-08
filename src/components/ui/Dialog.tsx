@@ -93,7 +93,11 @@ export function Dialog({ open, onClose, title, hideTitle, variant = 'center', si
           </button>
         </div>
         <div className="thin-scroll min-h-0 flex-1 overflow-y-auto">{children}</div>
-        {footer && <div className="border-t border-line bg-paper px-5 py-4 sm:px-6">{footer}</div>}
+        {footer && (
+          <div className="border-t border-line bg-paper px-5 py-4 sm:px-6" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
+            {footer}
+          </div>
+        )}
       </div>
     </div>,
     document.body,

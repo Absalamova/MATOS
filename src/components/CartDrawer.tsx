@@ -202,19 +202,19 @@ export function CartDrawer() {
                               {l.item.garmentKey ? ` · ${t(findGarment(l.item.garmentKey)!.name)}` : ''}
                             </div>
                           </div>
-                          <button type="button" className="icon-btn -mr-2 -mt-2 h-9 w-9 text-graphite hover:text-ink" onClick={() => removeFromCart(l.item.id)} aria-label={`${t(UI.remove)}: ${t(l.fabric.name)}`}>
+                          <button type="button" className="icon-btn -mr-2 -mt-2 h-9 w-9 text-graphite hover:text-ink pointer-coarse:h-11 pointer-coarse:w-11" onClick={() => removeFromCart(l.item.id)} aria-label={`${t(UI.remove)}: ${t(l.fabric.name)}`}>
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
                         <div className="mt-3 flex items-center justify-between gap-3">
                           <div className="flex items-center rounded-full border border-line">
-                            <button type="button" className="icon-btn h-8 w-8" onClick={() => setCartMeters(l.item.id, fromUnit(toUnit(l.item.meters, unit) - 0.5, unit))} aria-label="−0,5">
+                            <button type="button" className="icon-btn h-8 w-8 pointer-coarse:h-10 pointer-coarse:w-10" onClick={() => setCartMeters(l.item.id, fromUnit(toUnit(l.item.meters, unit) - 0.5, unit))} aria-label="−0,5">
                               <Minus className="h-3.5 w-3.5" />
                             </button>
                             <span className="tabular min-w-[64px] text-center text-[14px]">{formatLength(l.item.meters, unit, lang)}</span>
                             <button
                               type="button"
-                              className="icon-btn h-8 w-8 disabled:opacity-35"
+                              className="icon-btn h-8 w-8 disabled:opacity-35 pointer-coarse:h-10 pointer-coarse:w-10"
                               disabled={l.stock !== undefined && l.item.meters >= l.stock - 1e-9}
                               onClick={() => setCartMeters(l.item.id, Math.min(l.stock ?? 100, fromUnit(toUnit(l.item.meters, unit) + 0.5, unit)))}
                               aria-label="+0,5"
@@ -258,7 +258,7 @@ export function CartDrawer() {
                         <span className="min-w-0 flex-1 truncate text-[14px]">
                           {t(s.fabric.name)}, {t(s.color.name)}
                         </span>
-                        <button type="button" className="text-[13px] text-graphite underline-offset-4 hover:text-ink hover:underline" onClick={() => toggleSample(s.s.fabricId, s.s.colorId)}>
+                        <button type="button" className="py-2 text-[13px] text-graphite underline-offset-4 hover:text-ink hover:underline" onClick={() => toggleSample(s.s.fabricId, s.s.colorId)}>
                           {t(UI.remove)}
                         </button>
                       </li>

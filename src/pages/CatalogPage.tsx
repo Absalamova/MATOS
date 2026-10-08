@@ -193,7 +193,22 @@ export function CatalogPage({ route }: { route: Route }) {
               </select>
             </label>
           </div>
-          {filtersOpen && <div className="mb-8 rounded-xl border border-line p-5 lg:hidden">{filterGroups}</div>}
+          {filtersOpen && (
+            <div className="mb-8 rounded-xl border border-line p-5 lg:hidden">
+              {filterGroups}
+              <div className="mt-6 flex gap-3 border-t border-line pt-5">
+                {active > 0 && (
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={reset}>
+                    <X className="h-4 w-4" />
+                    {t(L('Tozalash', 'Сбросить', 'Clear'))}
+                  </button>
+                )}
+                <button type="button" className="btn btn-primary btn-sm ml-auto" onClick={() => setFiltersOpen(false)}>
+                  {t(L(`${results.length} ta matoni ko‘rsatish`, `Показать ${results.length}`, `Show ${results.length}`))}
+                </button>
+              </div>
+            </div>
+          )}
 
           {results.length === 0 ? (
             <div className="rounded-xl border border-dashed border-line px-6 py-16 text-center">
@@ -207,7 +222,7 @@ export function CatalogPage({ route }: { route: Route }) {
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 md:grid-cols-3">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:gap-x-6 sm:gap-y-10 md:grid-cols-3">
               {results.map(({ f, color }, i) => (
                 <ProductCard key={`${f.id}-${family ?? ''}`} fabric={f} initialColor={color} eager={i < 3} />
               ))}

@@ -1,5 +1,8 @@
 @import "tailwindcss" source(".");
 
+/* Phones held sideways: wide enough for sm/md layouts but too short to stack a 3D stage above a panel. */
+@custom-variant short (@media (orientation: landscape) and (max-height: 540px));
+
 /*
   MATOS design tokens
   White canvas so fabric photos (shot on white) sit flush with the page,
@@ -64,7 +67,10 @@
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
     scroll-behavior: smooth;
+    /* anchors and scrollIntoView land below the sticky header */
+    scroll-padding-top: 80px;
   }
   body {
     background: var(--color-paper);
@@ -106,6 +112,17 @@
   img {
     max-width: 100%;
   }
+  /* Toasts rise above the buy bar that the fabric page and the studio pin to the bottom on phones/tablets. */
+  @media (max-width: 1023.98px) {
+    body:has([data-bottom-bar]) {
+      --toast-offset: 88px;
+    }
+  }
+  @media (max-width: 767.98px) {
+    body:has([data-bottom-bar='tall']) {
+      --toast-offset: 132px;
+    }
+  }
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -123,11 +140,12 @@
     width: 100%;
     max-width: 1280px;
     margin-inline: auto;
-    padding-inline: 16px;
+    /* keep content clear of the notch when a phone is turned sideways */
+    padding-inline: max(16px, env(safe-area-inset-left)) max(16px, env(safe-area-inset-right));
   }
   @media (min-width: 640px) {
     .wrap {
-      padding-inline: 28px;
+      padding-inline: max(28px, env(safe-area-inset-left)) max(28px, env(safe-area-inset-right));
     }
   }
   @media (min-width: 1024px) {
@@ -289,5 +307,19 @@
   }
   .tabular {
     font-variant-numeric: tabular-nums;
+  }
+
+  /* Touch screens: controls a finger can hit (about 44px), same look as with a mouse. */
+  @media (pointer: coarse) {
+    .btn-sm {
+      height: 42px;
+    }
+    .icon-btn {
+      width: 44px;
+      height: 44px;
+    }
+    .chip {
+      height: 40px;
+    }
   }
 }

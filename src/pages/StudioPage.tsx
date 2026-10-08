@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Download, Minus, Plus, RotateCcw, Wind, Rotate3d, ZoomIn, ZoomOut } from 'lucide-react';
+import { Check, Download, Minus, Plus, RotateCcw, Scissors, Wind, Rotate3d, ZoomIn, ZoomOut } from 'lucide-react';
 import { useApp } from '../state/app';
 import { href, navigate, Route } from '../lib/router';
 import { L, UI } from '../lib/i18n';
@@ -213,6 +213,7 @@ export function StudioPage({ route }: { route: Route }) {
 
   const panels: Record<Tab, React.ReactNode> = { garment: garmentPanel, fabric: fabricPanel, color: colorPanel, body: bodyPanel };
 
+  const tailorLink = href('tailors', { query: { garment: garment.typeKey, fabric: fabric.id, color: color.id } });
   const summary = (
     <div className="space-y-3">
       <div className="flex items-start justify-between gap-3">
@@ -244,7 +245,7 @@ export function StudioPage({ route }: { route: Route }) {
           {t(L('Bu mato ushbu fason uchun juda qalin yoki qattiq bo‘lishi mumkin. Ro‘yxatda “Mos” belgisi bor matolarni ko‘ring.', 'Эта ткань может быть слишком плотной или жёсткой для фасона. Посмотрите ткани с отметкой «Подходит».', 'This fabric may be too heavy or stiff for the style. Try one marked “Good fit”.'))}
         </p>
       )}
-      <div className="grid grid-cols-[1fr_auto] gap-2">
+      <div className="grid grid-cols-[1fr_auto_auto] gap-2 md:grid-cols-[1fr_auto]">
         <button type="button" className="btn btn-primary" onClick={() => addToCart(fabric.id, color.id, need.meters, garment.typeKey)}>
           {t(UI.addToBag)}
         </button>
@@ -252,24 +253,28 @@ export function StudioPage({ route }: { route: Route }) {
           {sampled ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
           <span className="hidden sm:inline">{t(L('Namuna', 'Образец', 'Sample'))}</span>
         </button>
+        {/* On phones the tailor link shares the row so the sticky bar leaves room for the mannequin. */}
+        <a className="btn btn-secondary px-4 md:hidden" href={tailorLink} aria-label={t(L('Tikuvchiga buyurtma berish', 'Заказать пошив', 'Order from a tailor'))}>
+          <Scissors className="h-4 w-4" />
+        </a>
       </div>
-      <a className="btn btn-secondary w-full" href={href('tailors', { query: { garment: garment.typeKey, fabric: fabric.id, color: color.id } })}>
+      <a className="btn btn-secondary hidden w-full md:inline-flex" href={tailorLink}>
         {t(L('Tikuvchiga buyurtma berish', 'Заказать пошив', 'Order from a tailor'))}
       </a>
     </div>
   );
 
-  const toolBtn = 'inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[13px] transition-colors';
+  const toolBtn = 'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-[13px] transition-colors pointer-coarse:h-10';
   const dark = backdrop === 'dark';
   const toolIdle = dark ? 'text-white/85 hover:bg-white/10' : 'text-ink hover:bg-ink/5';
   const toolOn = dark ? 'bg-white text-ink' : 'bg-ink text-white';
 
   return (
-    <div className="lg:grid lg:h-[calc(100dvh-64px)] lg:grid-cols-[1fr_420px]">
+    <div className="md:grid md:h-[calc(100dvh-65px)] md:grid-cols-[1fr_340px] lg:grid-cols-[1fr_420px] short:grid short:h-[calc(100dvh-65px)] short:grid-cols-[1fr_minmax(300px,42%)]">
       <h1 className="sr-only">{t(UI.studio)}</h1>
       {/* Stage */}
       <div
-        className="relative h-[62dvh] min-h-[420px] overflow-hidden lg:h-full"
+        className="relative h-[60dvh] min-h-[380px] overflow-hidden md:h-full md:min-h-0 short:h-full short:min-h-0"
         style={{
           background: dark
             ? 'radial-gradient(ellipse at 50% 35%, #3a3a40 0%, #1b1c20 60%, #121316 100%)'
@@ -309,9 +314,9 @@ export function StudioPage({ route }: { route: Route }) {
           </div>
         )}
         {!touched && !previewing && (
-          <div className={`pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full px-3 py-1.5 text-[12.5px] ${dark ? 'bg-white/10 text-white' : 'bg-paper/90 text-graphite'}`}>
+          <div className={`pointer-events-none absolute left-1/2 top-4 max-w-[90%] -translate-x-1/2 truncate rounded-full px-3 py-1.5 text-[12.5px] ${dark ? 'bg-white/10 text-white' : 'bg-paper/90 text-graphite'}`}>
             {t(L('Aylantirish uchun suring', 'Тяните, чтобы повернуть', 'Drag to turn'))}
-            <span className="hidden sm:inline">{t(L(', yaqinlashtirish uchun g‘ildirak', ', колесо — приблизить', ', scroll to zoom'))}</span>
+            <span className="hidden pointer-fine:inline">{t(L(', yaqinlashtirish uchun g‘ildirak', ', колесо — приблизить', ', scroll to zoom'))}</span>
           </div>
         )}
         <div className="absolute inset-x-0 bottom-3 flex justify-center px-3">
@@ -354,8 +359,8 @@ export function StudioPage({ route }: { route: Route }) {
       </div>
 
       {/* Panel */}
-      <aside className="flex flex-col border-l border-line bg-paper lg:min-h-0" aria-label={t(L('Sozlamalar', 'Настройки', 'Options'))}>
-        <div className="border-b border-line px-5 pt-4">
+      <aside className="flex flex-col border-line bg-paper md:min-h-0 md:border-l short:min-h-0 short:overflow-y-auto short:border-l" aria-label={t(L('Sozlamalar', 'Настройки', 'Options'))}>
+        <div className="sticky top-16 z-10 border-b border-line bg-paper px-4 pt-4 sm:px-5 md:static short:top-0 short:pt-2">
           <div className="no-scrollbar flex gap-1 overflow-x-auto" role="tablist">
             {tabs.map((tb) => (
               <button
@@ -374,10 +379,10 @@ export function StudioPage({ route }: { route: Route }) {
             ))}
           </div>
         </div>
-        <div className="thin-scroll px-5 py-5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto" role="tabpanel">
+        <div className="thin-scroll px-4 py-5 sm:px-5 md:min-h-0 md:flex-1 md:overflow-y-auto short:flex-none short:overflow-visible short:py-4" role="tabpanel">
           {panels[tab]}
         </div>
-        <div className="sticky bottom-0 border-t border-line bg-paper px-5 py-4" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
+        <div data-bottom-bar="tall" className="sticky bottom-0 z-10 border-t border-line bg-paper px-4 py-3 sm:px-5 md:py-4 short:static" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
           {summary}
         </div>
       </aside>

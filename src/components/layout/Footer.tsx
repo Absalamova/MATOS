@@ -7,11 +7,11 @@ import { displayPhone, telHref } from '../../lib/format';
 
 export function Footer() {
   const { t, open, settings } = useApp();
-  const link = 'text-graphite hover:text-ink transition-colors';
+  const link = 'inline-block text-graphite transition-colors hover:text-ink pointer-coarse:py-1';
   return (
     <footer className="mt-24 border-t border-line bg-mist">
-      <div className="wrap grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
-        <div>
+      <div className="wrap grid grid-cols-2 gap-x-6 gap-y-10 py-14 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
+        <div className="col-span-2 lg:col-span-1">
           <div className="font-display text-[30px] lowercase leading-none">matos</div>
           <p className="mt-3 max-w-[30ch] text-graphite">
             {t(L('Mato, namuna, 3D va tikuvchi — bir joyda.', 'Ткань, образец, 3D и портной — в одном месте.', 'Fabric, samples, 3D and tailors in one place.'))}
@@ -34,14 +34,14 @@ export function Footer() {
             <li><a className={link} href={ADMIN_URL} rel="noopener">{t(L('Sotuvchi paneli', 'Панель продавца', 'Seller panel'))}</a></li>
           </ul>
         </div>
-        <div>
+        <div className="col-span-2 lg:col-span-1">
           <h3 className="mb-3 font-sans text-[13px] font-medium text-muted">{t(L('Aloqa', 'Контакты', 'Contact'))}</h3>
           <ul className="space-y-2 text-graphite">
             <li className="max-w-[30ch]">{settings.pickupAddress}</li>
             {settings.supportPhone && (
               <li><a className={`${link} tabular`} href={telHref(settings.supportPhone)}>{displayPhone(settings.supportPhone)}</a></li>
             )}
-            <li><a className={link} href="mailto:atelier@matosfabrics.com">atelier@matosfabrics.com</a></li>
+            <li><a className={`${link} break-all`} href="mailto:atelier@matosfabrics.com">atelier@matosfabrics.com</a></li>
           </ul>
         </div>
       </div>
