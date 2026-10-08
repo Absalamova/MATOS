@@ -25,8 +25,17 @@ function useOpenedOnce(open: boolean) {
   return opened;
 }
 
+/** Same weaving loader as the first-load screen in index.html (styles live there). */
 function PageFallback() {
-  return <div className="min-h-[70vh]" aria-busy="true" />;
+  return (
+    <div className="mt-loader" role="status" aria-label="Yuklanmoqda">
+      <div className="mt-weave" aria-hidden="true">
+        {Array.from({ length: 7 }, (_, i) => (
+          <i key={i} />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function Shell() {

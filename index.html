@@ -33,9 +33,35 @@
         href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Tenor+Sans&display=swap&subset=cyrillic,latin-ext"
       />
     </noscript>
+    <style>
+      /* First-load screen: a little square of linen being woven, shown until React replaces #root.
+         It fades in after 250 ms so fast loads never flash it. Reused by the page fallback in App.tsx. */
+      .mt-loader { display: flex; min-height: 70vh; flex-direction: column; align-items: center; justify-content: center; gap: 18px; opacity: 0; animation: mt-in 0.4s 0.25s ease-out forwards; color: #191b20; }
+      .mt-loader--screen { min-height: 100vh; min-height: 100dvh; background: #fff; }
+      .mt-weave { position: relative; width: 60px; height: 60px; padding: 3px 0; display: flex; flex-direction: column; justify-content: space-between;
+        background: repeating-linear-gradient(90deg, #191b20 0 2px, transparent 2px 8px) 3px 0 / 100% 100% no-repeat; }
+      .mt-weave i { display: block; height: 5px; transform: scaleX(0); transform-origin: left; animation: mt-weft 2.6s cubic-bezier(0.6, 0.1, 0.3, 1) infinite;
+        background: repeating-linear-gradient(90deg, #edc233 0 6px, transparent 6px 8px) 3px 0; }
+      .mt-weave i:nth-child(even) { transform-origin: right; background-color: transparent; background-image: repeating-linear-gradient(90deg, transparent 0 4px, #c99c12 4px 8px); }
+      .mt-weave i:nth-child(1) { animation-delay: 0s; } .mt-weave i:nth-child(2) { animation-delay: 0.14s; } .mt-weave i:nth-child(3) { animation-delay: 0.28s; }
+      .mt-weave i:nth-child(4) { animation-delay: 0.42s; } .mt-weave i:nth-child(5) { animation-delay: 0.56s; } .mt-weave i:nth-child(6) { animation-delay: 0.7s; }
+      .mt-weave i:nth-child(7) { animation-delay: 0.84s; }
+      .mt-word { font: 22px/1 'Tenor Sans', Georgia, serif; letter-spacing: 0.04em; }
+      .mt-tape { width: 64px; height: 6px; border-radius: 1px; margin-top: -10px;
+        background: repeating-linear-gradient(90deg, #191b20 0 1px, transparent 1px 8px) 3px 0 / 100% 3px no-repeat, #edc233; }
+      @keyframes mt-in { to { opacity: 1; } }
+      @keyframes mt-weft { 0% { transform: scaleX(0); opacity: 1; } 35%, 80% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(1); opacity: 0; } }
+      @media (prefers-reduced-motion: reduce) { .mt-weave i { animation: none; transform: none; } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="mt-loader mt-loader--screen" role="status" aria-label="Yuklanmoqda">
+        <div class="mt-weave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="mt-word" aria-hidden="true">matos</div>
+        <div class="mt-tape" aria-hidden="true"></div>
+      </div>
+    </div>
     <noscript>MATOS ishlashi uchun brauzeringizda JavaScript yoqilgan bo‘lishi kerak.</noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
