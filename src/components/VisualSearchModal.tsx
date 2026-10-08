@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Camera, Check, ImageUp, Plus } from 'lucide-react';
 import { useApp } from '../state/app';
 import { L, UI } from '../lib/i18n';
-import { asset, formatMoney, pricePerUnit } from '../lib/format';
+import { asset, formatMoney, photoSources, pricePerUnit } from '../lib/format';
 import { analyzePhoto, Analysis, rankFabrics } from '../lib/visualSearch';
 import { href } from '../lib/router';
 import { GARMENTS } from '../data/garments';
@@ -124,7 +124,7 @@ export function VisualSearchModal() {
               {EXAMPLES.map((ex) => (
                 <button key={ex.src} type="button" onClick={() => run(asset(ex.src), ex.garment)} className="group text-left">
                   <span className="block aspect-[3/4] overflow-hidden rounded-[6px] bg-well">
-                    <img src={asset(ex.src)} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+                    <img {...photoSources(ex.src)} sizes="(min-width: 640px) 200px, 50vw" alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
                   </span>
                   <span className="mt-2 block text-[13.5px]">{t(ex.label)}</span>
                 </button>

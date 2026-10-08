@@ -1,4 +1,5 @@
 import { Currency, Fabric, Language, UnitSystem } from '../types';
+import { IMAGE_VARIANTS } from '../data/imageVariants';
 
 /** Resolves a public/ asset against the deploy base, so the site works at / and at /REPO/. */
 export function asset(path: string) {
@@ -6,6 +7,27 @@ export function asset(path: string) {
   const base = import.meta.env.BASE_URL || '/';
   return `${base.replace(/\/?$/, '/')}${path.replace(/^\//, '')}`;
 }
+
+/**
+ * Responsive WebP sources for a bundled photo (made by scripts/optimize-images.py), so a 200px card
+ * does not download the 900px JPG. Uploaded photos and anything not converted get no srcSet.
+ */
+export function photoSources(path: string): { src: string; srcSet?: string } {
+  const key = path.replace(/^\//, '');
+  const width = IMAGE_VARIANTS.get(key);
+  if (!width) return { src: asset(path) };
+  const stem = key.replace(/\.jpg$/, '');
+  return {
+    src: asset(`${stem}-480.webp`),
+    srcSet: `${asset(`${stem}-160.webp`)} 160w, ${asset(`${stem}-480.webp`)} 480w, ${asset(`${stem}.webp`)} ${width}w`,
+  };
+}
+
+/** The 160px WebP copy of a bundled photo, for colour chips and other tiny thumbnails. */
+export const tinyPhoto = (path: string) => {
+  const key = path.replace(/^\//, '');
+  return IMAGE_VARIANTS.has(key) ? asset(key.replace(/\.jpg$/, '-160.webp')) : asset(path);
+};
 
 export const M_PER_YD = 0.9144;
 

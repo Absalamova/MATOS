@@ -20,10 +20,19 @@
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Fonts load without blocking the first paint; text shows in the fallback font until they arrive. -->
     <link
+      rel="preload"
+      as="style"
       href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Tenor+Sans&display=swap&subset=cyrillic,latin-ext"
-      rel="stylesheet"
+      onload="this.onload=null;this.rel='stylesheet'"
     />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Tenor+Sans&display=swap&subset=cyrillic,latin-ext"
+      />
+    </noscript>
   </head>
   <body>
     <div id="root"></div>

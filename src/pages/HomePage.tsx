@@ -3,7 +3,7 @@ import { Star } from 'lucide-react';
 import { useApp } from '../state/app';
 import { href, Route } from '../lib/router';
 import { L, UI } from '../lib/i18n';
-import { asset, formatMoney, formatNumber, pricePerUnit } from '../lib/format';
+import { formatMoney, photoSources, formatNumber, pricePerUnit } from '../lib/format';
 import { ProductCard } from '../components/ProductCard';
 import { FabricImage } from '../components/ui/FabricImage';
 import { specialtyFor } from '../data/tailors';
@@ -48,7 +48,7 @@ function SwatchBook() {
             style={{ flex: on ? '11 1 0' : '1 1 0', transition: 'flex 0.55s cubic-bezier(0.2,0.7,0.2,1)', animationDelay: `${i * 28}ms`, borderRadius: 3 }}
           >
             <span className="absolute inset-0">
-              <FabricImage fabric={f} color={c} kind={on ? 'swatch' : 'tile'} alt="" eager={i < 6} />
+              <FabricImage fabric={f} color={c} kind={on ? 'swatch' : 'tile'} alt="" eager={i < 6} sizes="(min-width: 640px) 40vw, 100vw" />
             </span>
             <span className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent p-4 pt-16 text-white transition-opacity duration-300 ${on ? 'opacity-100' : 'opacity-0'}`}>
               <span className="block text-[15px] font-medium">{t(f.name)}</span>
@@ -170,7 +170,7 @@ export function HomePage({ route }: { route: Route }) {
       <section className="mt-24 bg-mist sm:mt-32" aria-labelledby="studio">
         <div className="wrap grid items-center gap-10 py-16 lg:grid-cols-[1.2fr_1fr] lg:py-20">
           <a href={href('studio')} className="block overflow-hidden rounded-[6px]" aria-hidden="true" tabIndex={-1}>
-            <img src={asset('images/studio/preview.jpg')} alt="" loading="lazy" className="aspect-[16/10] w-full object-cover" />
+            <img {...photoSources('images/studio/preview.jpg')} sizes="(min-width: 1024px) 55vw, 100vw" alt="" loading="lazy" decoding="async" className="aspect-[16/10] w-full object-cover" />
           </a>
           <div className="max-w-lg">
             <h2 id="studio" className="text-[34px] sm:text-[44px]">{t(L('Tikishdan oldin kiyib ko‘ring', 'Примерьте до пошива', 'Try it on before it’s sewn'))}</h2>
@@ -227,7 +227,7 @@ export function HomePage({ route }: { route: Route }) {
                 style={{ left: `calc((100% - 150px) * ${i / 4})`, transform: `rotate(${(i - 2) * 5}deg)` }}
               >
                 <div className="h-full overflow-hidden rounded-[2px]">
-                  <FabricImage fabric={f} color={f.colors[(i * 3) % f.colors.length]} kind="tile" alt="" />
+                  <FabricImage fabric={f} color={f.colors[(i * 3) % f.colors.length]} kind="tile" alt="" sizes="150px" />
                 </div>
               </div>
             ))}

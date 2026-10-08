@@ -120,7 +120,7 @@ export function ProductPage({ route }: { route: Route }) {
         {/* Gallery — stays in view beside the long buy box on tablets and desktops */}
         <div className="md:sticky md:top-24 md:self-start">
           <div className="relative aspect-square overflow-hidden rounded-[6px] bg-well">
-            <FabricImage key={`${color.id}-${view}`} fabric={fabric} color={color} kind={view} alt={`${t(fabric.name)}, ${t(color.name)}`} eager className="animate-fade" />
+            <FabricImage key={`${color.id}-${view}`} fabric={fabric} color={color} kind={view} alt={`${t(fabric.name)}, ${t(color.name)}`} eager sizes="(min-width: 768px) 50vw, 100vw" className="animate-fade" />
           </div>
           {hasPhotos ? (
             <div className={`mt-3 grid gap-3 ${views.length >= 4 ? 'grid-cols-4' : views.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`} role="tablist" aria-label={t(L('Suratlar', 'Фото', 'Photos'))}>
@@ -134,7 +134,7 @@ export function ProductPage({ route }: { route: Route }) {
                   className={`group text-left`}
                 >
                   <span className={`block aspect-square overflow-hidden rounded-[4px] bg-well ring-offset-2 transition ${view === v.id ? 'ring-2 ring-ink' : 'opacity-80 group-hover:opacity-100'}`}>
-                    <FabricImage fabric={fabric} color={color} kind={v.id} alt="" />
+                    <FabricImage fabric={fabric} color={color} kind={v.id} alt="" sizes="(min-width: 768px) 12vw, 25vw" />
                   </span>
                   <span className="mt-1.5 block text-[12.5px] text-graphite">{t(v.label)}</span>
                 </button>
