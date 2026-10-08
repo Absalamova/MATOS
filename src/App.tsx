@@ -9,6 +9,7 @@ import { CartDrawer } from './components/CartDrawer';
 import { AuthModal } from './components/AuthModal';
 import { ProfileModal } from './components/ProfileModal';
 import { VisualSearchModal } from './components/VisualSearchModal';
+import { StyleAdvisorModal } from './components/StyleAdvisorModal';
 import { HomePage } from './pages/HomePage';
 import { CatalogPage } from './pages/CatalogPage';
 import { ProductPage } from './pages/ProductPage';
@@ -67,6 +68,7 @@ function Shell() {
       <AuthModal />
       <ProfileModal />
       <VisualSearchModal />
+      <StyleAdvisorModal />
       <ToastHost />
     </div>
   );

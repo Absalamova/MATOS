@@ -115,12 +115,17 @@ function readBody(req: IncomingMessage, maxBytes: number): Promise<Buffer> {
   });
 }
 
-export function clientIp(req: IncomingMessage, trustProxy: boolean) {
-  if (trustProxy) {
-    const fwd = String(req.headers['x-forwarded-for'] ?? '').split(',')[0].trim();
-    if (fwd) return fwd;
-    const real = String(req.headers['x-real-ip'] ?? '').trim();
-    if (real) return real;
+/**
+ * Client IP for rate limits. Behind N trusted proxies (TRUST_PROXY=N) the real address is the N-th entry
+ * from the END of X-Forwarded-For — earlier entries can be forged by the client, so they are never used.
+ */
+export function clientIp(req: IncomingMessage, trustProxyHops: number) {
+  if (trustProxyHops > 0) {
+    const chain = String(req.headers['x-forwarded-for'] ?? '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean);
+    if (chain.length) return chain[Math.max(0, chain.length - trustProxyHops)];
   }
   return req.socket.remoteAddress ?? '';
 }

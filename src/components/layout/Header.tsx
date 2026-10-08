@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, Menu, ShoppingBag, UserRound } from 'lucide-react';
+import { Camera, Menu, ShoppingBag, Sparkles, UserRound } from 'lucide-react';
 import { useApp } from '../../state/app';
 import { href, RouteName } from '../../lib/router';
 import { L, UI } from '../../lib/i18n';
@@ -135,6 +135,13 @@ export function Header({ route }: { route: RouteName }) {
           {NAV.map((n) => navLink(n.route, t(n.label)))}
         </nav>
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
+          <button type="button" className="btn btn-secondary btn-sm hidden xl:inline-flex" onClick={() => open('style')}>
+            <Sparkles className="h-4 w-4" strokeWidth={1.7} />
+            {t(UI.styleAdvisor)}
+          </button>
+          <button type="button" className="icon-btn hidden md:inline-flex xl:hidden" onClick={() => open('style')} aria-label={t(UI.styleAdvisor)} title={t(UI.styleAdvisor)}>
+            <Sparkles className="h-5 w-5" strokeWidth={1.6} />
+          </button>
           <button type="button" className="btn btn-secondary btn-sm hidden md:inline-flex" onClick={() => open('search')}>
             <Camera className="h-4 w-4" strokeWidth={1.7} />
             {t(UI.photoSearch)}
@@ -175,6 +182,10 @@ export function Header({ route }: { route: RouteName }) {
         <nav className="px-5 pb-2 sm:px-6">
           {navLink('home', t(L('Bosh sahifa', 'Главная', 'Home')), true)}
           {NAV.map((n) => navLink(n.route, t(n.label), true))}
+          <button type="button" className="flex w-full items-center gap-3 border-b border-line py-4 text-left font-display text-[26px] text-graphite" onClick={() => open('style')}>
+            {t(UI.styleAdvisor)}
+            <Sparkles className="h-5 w-5" strokeWidth={1.5} />
+          </button>
         </nav>
         <div className="px-5 py-6 sm:px-6">
           <Settings compact />

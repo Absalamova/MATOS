@@ -35,7 +35,8 @@ export interface Config {
   dbFile: string;
   uploadsDir: string;
   corsOrigins: string[];
-  trustProxy: boolean;
+  /** Number of reverse proxies in front of the API (0 = direct). */
+  trustProxy: number;
   admin: { email: string; password: string; name: string };
   telegram: { token: string; chatId: string };
   sessionDaysUser: number;
@@ -77,7 +78,7 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     dbFile: e.DB_FILE ? path.resolve(ROOT, e.DB_FILE) : path.join(dataDir, 'matos.db'),
     uploadsDir: path.join(dataDir, 'uploads'),
     corsOrigins: list(e.CORS_ORIGINS).length ? list(e.CORS_ORIGINS) : prod ? prodOrigins : devOrigins,
-    trustProxy: e.TRUST_PROXY === '1' || e.TRUST_PROXY === 'true',
+    trustProxy: e.TRUST_PROXY === 'true' ? 1 : Math.max(0, Math.floor(num(e.TRUST_PROXY, 0))),
     admin: {
       email: (e.ADMIN_EMAIL || (prod ? '' : 'admin@matos.uz')).trim().toLowerCase(),
       password: e.ADMIN_PASSWORD || (prod ? '' : 'matos-admin'),

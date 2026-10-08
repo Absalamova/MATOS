@@ -1,4 +1,6 @@
+import fs from 'node:fs';
 import http from 'node:http';
+import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { loadConfig, type Config } from './config.ts';
 import { openDb, nowIso, type Db } from './db.ts';
@@ -42,6 +44,22 @@ export async function ensureOwner(db: Db, cfg: Config) {
   if (cfg.env !== 'production' && cfg.admin.password === 'matos-admin') log.warn('Demo admin paroli ishlatilmoqda (matos-admin). Productionda albatta almashtiring.');
 }
 
+/** Fails fast with a clear message when the data folder (DB + photos) is read-only, e.g. a root-owned volume. */
+function ensureWritable(dir: string) {
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    const probe = path.join(dir, `.write-test-${process.pid}`);
+    fs.writeFileSync(probe, '');
+    fs.rmSync(probe);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code ?? String(err);
+    throw new Error(
+      `Ma’lumotlar papkasiga yozib bo‘lmadi: ${dir} (${code}). ` +
+        'Railway’da xizmat o‘zgaruvchilariga RAILWAY_RUN_UID=0 qo‘shing; o‘z serveringizda papka egasini tekshiring (chown).',
+    );
+  }
+}
+
 export interface Running {
   server: http.Server;
   db: Db;
@@ -53,6 +71,8 @@ export interface Running {
 export async function startServer(overrides: Partial<Config> = {}, opts: { quiet?: boolean } = {}): Promise<Running> {
   const config = loadConfig(overrides);
   configureLog({ format: config.logFormat, silent: opts.quiet });
+  if (config.dbFile !== ':memory:') ensureWritable(path.dirname(config.dbFile));
+  ensureWritable(config.uploadsDir);
   const db = openDb(config.dbFile);
   seedIfEmpty(db);
   await ensureOwner(db, config);

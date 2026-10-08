@@ -63,11 +63,15 @@ function folds(ctx: Ctx, f: Omit<FoldSpec, 'seed'>): FoldSpec {
 
 function sleeve(ctx: Ctx, side: 1 | -1, opts: { t0?: number; t1: number; ease: number; extra?: (t: number) => number; droop?: (t: number) => number; stretch?: (t: number) => number }, mat?: THREE.Material, amp = 0) {
   const arm = ctx.body.arm(side);
+  const t0 = opts.t0 ?? 0.0;
+  const tuck = t0 < 0.3;
   const g = buildTube({
     curve: arm.curve,
-    t0: opts.t0 ?? 0.0,
+    t0,
     t1: opts.t1,
-    radius: (t) => arm.radius(t) + opts.ease + (opts.extra ? opts.extra(t) : 0),
+    // Main sleeves start snug on the shoulder ball, under the bodice, so their open top edge
+    // never sticks out above the shoulder as a flap; cuffs and bands keep their full ease.
+    radius: (t) => arm.radius(t) + (opts.ease + (opts.extra ? opts.extra(t) : 0)) * (tuck ? 0.45 + 0.55 * smoothstep(t0, t0 + 0.14, t) : 1),
     droop: opts.droop,
     stretch: opts.stretch,
     segments: 36,
@@ -318,7 +322,7 @@ function shirt(ctx: Ctx) {
       hangKeep: 0.9993,
       shape: (y, th, r) => {
         const pad = smoothstep(b.at(1.3), b.at(1.37), y) * (1 - smoothstep(b.at(1.4), b.at(1.43), y));
-        return r + pad * 0.012 * Math.pow(Math.abs(Math.cos(th)), 3);
+        return r + pad * 0.005 * Math.pow(Math.abs(Math.cos(th)), 3);
       },
       folds: folds(ctx, { start: b.at(1.15), end: b.at(0.82), depth: 0.006, count: 7, irregular: 0.5 }),
       windFrom: b.at(1.0),
@@ -361,7 +365,11 @@ function jumpsuit(ctx: Ctx) {
     const lift = panel * panel * (3 - 2 * panel);
     return b.at(1.255) + lift * 0.08 * b.sy - dip(th, FRONT, 0.42, 0.11, 1.2) - dip(th, BACK, 1.1, 0.05);
   };
-  shell(ctx, { rows: 76, yTop: top, yBottom: () => b.at(0.7), ease: (y) => easeAt(b, 1.0, 0.01, 0.014)(y) - 0.008 * smoothstep(b.at(0.8), b.at(0.74), y) }, ctx.mats.main);
+  // Bodice + hips down to the top of the hip. The trouser legs continue from exactly this
+  // edge, so there is no overlap (lumps) and no gap (mannequin showing at the crotch).
+  const joinY = b.at(0.86);
+  const bodiceEase = easeAt(b, 1.0, 0.01, 0.014);
+  shell(ctx, { rows: 76, yTop: top, yBottom: () => joinY, ease: bodiceEase }, ctx.mats.main);
   // halter straps
   for (const side of [1, -1] as const) {
     const th = FRONT - side * 0.5;
@@ -371,29 +379,77 @@ function jumpsuit(ctx: Ctx) {
   }
   // palazzo legs
   const wide = 0.06 + 0.04 * (1 - ctx.fluid);
+  const crotch = b.torsoBottom;
+  const floor = b.at(0) + 0.008;
+  const easeJoin = bodiceEase(joinY);
+  const tmp = new THREE.Vector2();
+  /** Half of the hip cross-section (this leg's side, cut at the centre seam), in body coordinates. */
+  const halfHip = (y: number, side: 1 | -1) => {
+    const pts: [number, number][] = [];
+    const n = 48;
+    for (let i = 0; i <= n; i++) {
+      const th = -PI / 2 + (PI * i) / n; // back → side → front (for side = +1)
+      b.hullPoint(y, th, tmp);
+      const r = tmp.length() || 1;
+      const k = (r + easeJoin) / r;
+      pts.push([side * tmp.x * k, tmp.y * k]);
+    }
+    return pts;
+  };
+  /** Where a ray from (ox, 0) along (dx, dz) leaves a closed polygon. */
+  const rayExit = (pts: [number, number][], ox: number, dx: number, dz: number) => {
+    let best = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const A = pts[i];
+      const B = pts[(i + 1) % pts.length];
+      const ex = B[0] - A[0];
+      const ez = B[1] - A[1];
+      const den = dx * ez - dz * ex;
+      if (Math.abs(den) < 1e-9) continue;
+      const ax = A[0] - ox;
+      const t = (ax * ez - A[1] * ex) / den;
+      const u = (ax * dz - A[1] * dx) / den;
+      if (t > 0 && u >= -1e-6 && u <= 1 + 1e-6) best = Math.max(best, t);
+    }
+    return best;
+  };
   for (const side of [1, -1] as const) {
-    const legTop = b.at(0.775);
-    const floor = b.at(0) + 0.008;
+    const cache = new Map<number, [number, number][]>();
     const hull = (y: number, th: number, out: THREE.Vector2) => {
-      const L = b.leg(y);
-      const t = Math.max(0, (legTop - y) / (legTop - floor));
-      const R = L.r + 0.004 + 0.02 * smoothstep(legTop, legTop - 0.1, y) + (wide + 0.03) * Math.pow(t, 0.9);
-      let x = R * Math.cos(th);
-      const z = R * Math.sin(th) * 0.92;
-      // flatten the inner side so both legs meet at the centre seam
+      const L = b.leg(Math.min(y, b.at(0.84)));
+      const cx = side * L.x;
+      const dx = Math.cos(th);
+      const dz = Math.sin(th);
+      // palazzo leg: a widening tube around the leg, flattened where the legs meet
+      const t = Math.max(0, (crotch - y) / (crotch - floor));
+      const R = L.r + 0.012 + (wide + 0.03) * Math.pow(t, 0.9);
+      let lx = R * dx;
+      const lz = R * dz * 0.92;
       const maxIn = L.x + 0.003;
-      if (x * side < -maxIn) x = -side * maxIn;
-      return out.set(x, z);
+      if (lx * side < -maxIn) lx = -side * maxIn;
+      // near the hip the leg is half of the bodice cross-section, then eases into the tube
+      const f = smoothstep(crotch + 0.02, crotch - 0.16 * b.sy, y);
+      if (f >= 1) return out.set(lx, lz);
+      const key = Math.round(y * 2000);
+      let poly = cache.get(key);
+      if (!poly) {
+        poly = halfHip(Math.max(y, crotch + 0.002), side);
+        cache.set(key, poly);
+      }
+      const rh = rayExit(poly, cx, dx, dz);
+      const hx = rh * dx;
+      const hz = rh * dz;
+      return out.set(hx + (lx - hx) * f, hz + (lz - hz) * f);
     };
     shell(
       ctx,
       {
         cols: 64,
-        rows: 70,
-        yTop: () => legTop,
+        rows: 84,
+        yTop: () => joinY,
         yBottom: (th) => floor + 0.008 * Math.sin(th),
         hullFn: hull,
-        centerFn: (y) => ({ x: side * b.leg(y).x, z: 0 }),
+        centerFn: (y) => ({ x: side * b.leg(Math.min(y, b.at(0.84))).x, z: 0 }),
         ease: () => 0,
         folds: folds(ctx, { start: b.at(0.7), end: floor + 0.1, depth: 0.01 + 0.008 * ctx.fluid, count: 5, irregular: 0.5, hemWave: 0.004 }),
         windFrom: b.at(0.7),
@@ -467,7 +523,7 @@ function tailoredJacket(ctx: Ctx, long: boolean) {
   const easeFn = (y: number) => 0.012 + (long ? 0.026 : 0.02) * smoothstep(b.at(1.43), b.at(1.35), y);
   const pads = (y: number, th: number, r: number) => {
     const k = smoothstep(b.at(1.28), b.at(1.36), y) * (1 - smoothstep(b.at(1.4), b.at(1.44), y));
-    return r + k * (long ? 0.012 : 0.018) * Math.pow(Math.abs(Math.cos(th)), 3);
+    return r + k * (long ? 0.006 : 0.009) * Math.pow(Math.abs(Math.cos(th)), 3);
   };
   const common = {
     ease: easeFn,

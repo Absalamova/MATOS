@@ -165,7 +165,10 @@ export function buildShell(spec: ShellSpec): ShellResult {
         const u = (A[0] * dz - A[1] * dx) / den;
         if (t > 0 && u >= -1e-6 && u <= 1 + 1e-6) best = Math.max(best, t);
       }
-      if (best > base[c]) base[c] = best;
+      // fade the bridging in below hangFrom: switching it on for a whole row at once left a
+      // horizontal crease across the front of hanging skirts
+      const fade = spec.hangFrom === undefined ? 1 : smoothstep(spec.hangFrom, spec.hangFrom - 0.08, rowY[c]);
+      if (best > base[c]) base[c] += (best - base[c]) * fade;
     }
   };
 
@@ -202,7 +205,7 @@ export function buildShell(spec: ShellSpec): ShellResult {
       }
       base[c] = rr;
     }
-    if (closed && hanging > ncol / 2) convexify();
+    if (closed && hanging > 0) convexify();
     for (let c = 0; c < ncol; c++) prevR[c] = base[c];
   };
 
@@ -242,16 +245,30 @@ export function buildShell(spec: ShellSpec): ShellResult {
     lastRow = row;
   }
 
-  // UVs in metres: u = arc length around each row, v = height.
+  // UVs in metres: u = arc length around each row, v = height. Like a garment cut on the
+  // straight grain, u is measured from the centre front, so prints stay upright on the front.
+  // (Measuring from the back seam made u at the front depend on the whole girth, and prints
+  // sheared into diagonals wherever the girth changes, e.g. from waist to hips.)
+  let frontCol = Math.round(cols / 2);
+  let bd = (t1 - t0) / cols;
+  for (let c = 0; c < ncol; c++) {
+    let d = Math.abs(thetas[c] - Math.PI / 2) % TAU;
+    if (d > Math.PI) d = TAU - d;
+    if (d <= bd) {
+      bd = d;
+      frontCol = c;
+    }
+  }
+  const acc = new Float32Array(ncol);
   for (let r = 0; r <= totalRows; r++) {
-    let acc = 0;
+    for (let c = 1; c < ncol; c++) {
+      const i = r * ncol + c;
+      const j = i - 1;
+      acc[c] = acc[c - 1] + Math.hypot(pos[i * 3] - pos[j * 3], pos[i * 3 + 2] - pos[j * 3 + 2]);
+    }
     for (let c = 0; c < ncol; c++) {
       const i = r * ncol + c;
-      if (c > 0) {
-        const j = i - 1;
-        acc += Math.hypot(pos[i * 3] - pos[j * 3], pos[i * 3 + 2] - pos[j * 3 + 2]);
-      }
-      uv[i * 2] = acc;
+      uv[i * 2] = acc[c] - acc[frontCol];
       uv[i * 2 + 1] = pos[i * 3 + 1];
     }
   }

@@ -24,6 +24,7 @@ export const UI = {
   inSamples: L('Namunada bor', 'Образец добавлен', 'Sample added'),
   tryOn3D: L('3D’da kiyib ko‘rish', 'Примерить в 3D', 'Try on in 3D'),
   photoSearch: L('Rasm orqali topish', 'Поиск по фото', 'Search by photo'),
+  styleAdvisor: L('Menga nima mos?', 'Что мне идёт?', 'What suits me?'),
   perMeter: L('1 metr', 'за метр', 'per metre'),
   perYard: L('1 yard', 'за ярд', 'per yard'),
   width: L('Eni', 'Ширина', 'Width'),

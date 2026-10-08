@@ -67,16 +67,46 @@ export function StudioPage({ route }: { route: Route }) {
   const [touched, setTouched] = useState(false);
   const [showCalc, setShowCalc] = useState(false);
   const viewer = useRef<ViewerHandle>(null);
+  // Hovering a fabric or colour previews it on the mannequin; clicking (or tapping) keeps it.
+  const [preview, setPreview] = useState<{ fabric: string; color?: string } | null>(null);
+  const hoverTimer = useRef<number | undefined>(undefined);
+  const schedulePreview = (p: { fabric: string; color?: string } | null) => {
+    window.clearTimeout(hoverTimer.current);
+    // short delay so sweeping the mouse across the list does not rebuild every garment on the way
+    hoverTimer.current = window.setTimeout(() => setPreview(p), p ? 90 : 160);
+  };
+  useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
+  const hoverProps = (p: { fabric: string; color?: string }) => ({
+    onPointerEnter: (e: React.PointerEvent) => {
+      if (e.pointerType === 'mouse') schedulePreview(p);
+    },
+    onFocus: () => schedulePreview(p),
+  });
+  const listLeaveProps = {
+    onPointerLeave: (e: React.PointerEvent) => {
+      if (e.pointerType === 'mouse') schedulePreview(null);
+    },
+    onBlur: (e: React.FocusEvent) => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) schedulePreview(null);
+    },
+  };
 
-  const set = (patch: { fabric?: string; color?: string; garment?: GarmentTypeKey }) =>
+  const set = (patch: { fabric?: string; color?: string; garment?: GarmentTypeKey }) => {
+    window.clearTimeout(hoverTimer.current);
+    setPreview(null);
     navigate('studio', {
       query: { fabric: patch.fabric ?? fabric.id, color: patch.color ?? (patch.fabric ? undefined : color.id), garment: patch.garment ?? garment.typeKey },
       replace: true,
     });
+  };
 
   const need = useMemo(() => requiredMeters(garment, fabric, measurements), [garment, fabric, measurements]);
   const total = pricePerMeter(fabric, currency) * need.meters;
-  const outfit = useMemo(() => ({ fabric, color, garment: garment.typeKey }), [fabric, color, garment]);
+  const previewFabric = preview ? fabricById(preview.fabric) : undefined;
+  const shownFabric = previewFabric ?? fabric;
+  const shownColor = previewFabric ? findColor(previewFabric, preview?.color ?? (previewFabric.id === fabric.id ? color.id : undefined)) : color;
+  const previewing = !!previewFabric && (shownFabric.id !== fabric.id || shownColor.id !== color.id);
+  const outfit = useMemo(() => ({ fabric: shownFabric, color: shownColor, garment: garment.typeKey }), [shownFabric, shownColor, garment]);
   const sampled = hasSample(fabric.id, color.id);
   const size = sizeFor(measurements);
   const backdrop = lighting === 'evening' ? 'dark' : 'light';
@@ -120,14 +150,20 @@ export function StudioPage({ route }: { route: Route }) {
   );
 
   const fabricPanel = (
-    <ul className="divide-y divide-line">
+    <ul className="divide-y divide-line" {...listLeaveProps}>
       {[...fabrics]
         .sort((a, b) => suitability(garment, b) - suitability(garment, a))
         .map((f) => {
           const good = suitability(garment, f) >= 0.75;
           return (
             <li key={f.id}>
-              <button type="button" aria-pressed={f.id === fabric.id} onClick={() => set({ fabric: f.id })} className="flex w-full items-center gap-3 py-2.5 text-left">
+              <button
+                type="button"
+                aria-pressed={f.id === fabric.id}
+                onClick={() => set({ fabric: f.id })}
+                {...hoverProps({ fabric: f.id })}
+                className={`flex w-full items-center gap-3 rounded-lg py-2.5 text-left transition-colors ${previewing && f.id === shownFabric.id ? 'bg-mist' : ''}`}
+              >
                 <span className={`h-12 w-12 shrink-0 overflow-hidden rounded-[4px] bg-well ${f.id === fabric.id ? 'ring-2 ring-ink ring-offset-2' : ''}`}>
                   <FabricImage fabric={f} color={f.colors[0]} kind="swatch" alt="" />
                 </span>
@@ -147,9 +183,9 @@ export function StudioPage({ route }: { route: Route }) {
 
   const colorPanel = (
     <div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2" {...listLeaveProps}>
         {fabric.colors.map((c) => (
-          <button key={c.id} type="button" aria-pressed={c.id === color.id} onClick={() => set({ color: c.id })} className="flex items-center gap-2 rounded-full border border-line py-1 pl-1 pr-3 text-[13px] transition-colors hover:border-ink aria-pressed:border-ink aria-pressed:bg-mist">
+          <button key={c.id} type="button" aria-pressed={c.id === color.id} onClick={() => set({ color: c.id })} {...hoverProps({ fabric: fabric.id, color: c.id })} className="flex items-center gap-2 rounded-full border border-line py-1 pl-1 pr-3 text-[13px] transition-colors hover:border-ink aria-pressed:border-ink aria-pressed:bg-mist">
             <ColorChip fabric={fabric} color={c} size={26} />
             {t(c.name)}
           </button>
@@ -267,7 +303,12 @@ export function StudioPage({ route }: { route: Route }) {
             {t(L('Mato teksturasi yuklanmoqda…', 'Загружаем текстуру ткани…', 'Loading fabric texture…'))}
           </div>
         )}
-        {!touched && (
+        {previewing && (
+          <div className={`pointer-events-none absolute left-1/2 top-4 z-10 max-w-[90%] -translate-x-1/2 truncate rounded-full px-3 py-1.5 text-[12.5px] ${dark ? 'bg-white text-ink' : 'bg-ink text-white'}`} role="status">
+            {t(shownFabric.name)}, {t(shownColor.name)} · {t(L('tanlash uchun bosing', 'нажмите, чтобы выбрать', 'click to choose'))}
+          </div>
+        )}
+        {!touched && !previewing && (
           <div className={`pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full px-3 py-1.5 text-[12.5px] ${dark ? 'bg-white/10 text-white' : 'bg-paper/90 text-graphite'}`}>
             {t(L('Aylantirish uchun suring', 'Тяните, чтобы повернуть', 'Drag to turn'))}
             <span className="hidden sm:inline">{t(L(', yaqinlashtirish uchun g‘ildirak', ', колесо — приблизить', ', scroll to zoom'))}</span>
@@ -322,7 +363,10 @@ export function StudioPage({ route }: { route: Route }) {
                 type="button"
                 role="tab"
                 aria-selected={tab === tb.id}
-                onClick={() => setTab(tb.id)}
+                onClick={() => {
+                  setTab(tb.id);
+                  schedulePreview(null);
+                }}
                 className={`relative px-3 pb-3 pt-1 text-[14.5px] transition-colors ${tab === tb.id ? 'text-ink after:absolute after:inset-x-2 after:bottom-0 after:h-[2px] after:bg-ink' : 'text-graphite hover:text-ink'}`}
               >
                 {tb.label}
