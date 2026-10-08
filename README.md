@@ -84,6 +84,35 @@ npm install && npm run build:admin                   # yoki admin/dist ni kompyu
 docker compose -f deploy/docker-compose.yml up -d --build
 ```
 
+### Railway varianti (server boshqarmasdan)
+
+API va panel — bitta Railway loyihasida ikkita xizmat. Sayt GitHub Pages’da qoladi.
+
+1. railway.com ga GitHub orqali kiring, **Hobby** tarifini yoqing (Trial’da faqat 1 ta domen va 0,5 GB disk). Railway va GitHub’da ikki bosqichli himoyani (2FA) yoqing.
+2. **New Project → Deploy from GitHub repo → MATOS.** Railway ildizdagi `Dockerfile` ni topadi — bu API xizmati. Nomini `api` qiling. Settings’da region: **EU West (Amsterdam)**.
+3. Xizmatga **Volume** qo‘shing, mount path: `/data` (baza va suratlar shu yerda).
+4. **Variables → Raw Editor**:
+   ```
+   NODE_ENV=production
+   RAILWAY_RUN_UID=0
+   TRUST_PROXY=1
+   PUBLIC_URL=https://api.matos.uz
+   ADMIN_URL=https://admin.matos.uz
+   CORS_ORIGINS=https://matos.uz,https://www.matos.uz,https://admin.matos.uz
+   ADMIN_EMAIL=siz@example.com
+   ADMIN_PASSWORD=kamida-10-belgili-kuchli-parol
+   TELEGRAM_BOT_TOKEN=
+   TELEGRAM_CHAT_ID=
+   ```
+5. **Settings → Deploy:** Healthcheck path `/api/health`; “Serverless / App sleeping” o‘chiq bo‘lsin.
+6. **Settings → Networking → Custom Domain:** `api.matos.uz`, port `8080`. Railway ko‘rsatgan **CNAME** va **TXT** yozuvlarini domen panelingizga qo‘shing (ikkalasi ham shart). HTTPS sertifikati 1 soat ichida chiqadi.
+7. Shu loyihada **New → GitHub Repo → MATOS** (ikkinchi xizmat, nomi `admin`). Variables: `RAILWAY_DOCKERFILE_PATH=deploy/admin.Dockerfile`. Volume kerak emas. Custom Domain: `admin.matos.uz` (port `8080`) + CNAME/TXT.
+8. Tekshiring: `https://api.matos.uz/api/health` → `{"ok":true}`, `https://admin.matos.uz` → ADMIN_EMAIL / ADMIN_PASSWORD bilan kirish.
+9. `api` xizmati → **Backups**: Daily va Weekly zaxira nusxani yoqing.
+10. Ixtiyoriy, ortiqcha qayta yig‘ishning oldini olish uchun **Watch paths**: `api` → `server/**`, `shared/**`, `Dockerfile`; `admin` → `admin/**`, `shared/**`, `src/lib/**`, `src/types/**`, `deploy/admin*`.
+
+Eslatmalar: volume ulangan xizmat bitta nusxada ishlaydi va har deploy’da bir necha soniya to‘xtab oladi — bu Railway qoidasi. Mijozlarning shaxsiy ma’lumotlari (ism, telefon) Niderlandiyadagi serverda saqlanadi; “Shaxsga doir ma’lumotlar to‘g‘risida”gi qonunning 27¹-moddasi bo‘yicha ular O‘zbekistondagi serverda bo‘lishi talab qilinadi — real savdoni boshlashdan oldin yuristga tekshirtiring. Ko‘chish oson: `npm run db:backup` fayli va `uploads` papkasini yangi serverga o‘tkazasiz.
+
 ### B variant — Node + systemd + nginx
 
 ```bash
@@ -113,7 +142,7 @@ API ga npm kutubxonalari kerak emas — u faqat Node.js’ning o‘zida ishlaydi
 | `PORT`, `HOST` | API porti va interfeysi (nginx orqasida `127.0.0.1`) |
 | `PUBLIC_URL` | API ning tashqi manzili, masalan `https://api.matos.uz` |
 | `CORS_ORIGINS` | API dan foydalanadigan saytlar (vergul bilan) |
-| `TRUST_PROXY=1` | nginx/Caddy orqasida mijozning haqiqiy IP sini olish |
+| `TRUST_PROXY=1` | nginx/Caddy/Railway orqasida mijozning haqiqiy IP sini olish (proksi soni; Cloudflare + Railway bo‘lsa `2`) |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Birinchi ishga tushishda yaratiladigan ega hisobi (parol ≥ 10 belgi) |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Yangi buyurtma/so‘rov haqida Telegram xabari |
 | `DATA_DIR` | Baza va suratlar papkasi |

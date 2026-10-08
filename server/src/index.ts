@@ -36,7 +36,7 @@ try {
   if (e.code === 'EADDRINUSE') {
     console.error(`\n${process.env.PORT || 8080}-port band. Boshqa dastur (yoki API ning eski nusxasi) ishlayapti.\nUni yoping yoki .env faylida PORT=8081 qilib qo‘ying.\n`);
   } else {
-    console.error('API ishga tushmadi:', e);
+    console.error('API ishga tushmadi:', e instanceof Error ? e.message : e);
   }
   process.exit(1);
 }
