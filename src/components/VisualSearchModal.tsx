@@ -17,6 +17,7 @@ const EXAMPLES: { src: string; label: ReturnType<typeof L>; garment: GarmentType
   { src: 'images/examples/adras-kimono.jpg', label: L('Adras chopon', 'Чапан из адраса', 'Adras chapan'), garment: 'kimono' },
   { src: 'images/examples/khaki-trench.jpg', label: L('Xaki trench', 'Тренч хаки', 'Khaki trench'), garment: 'trench' },
   { src: 'images/examples/blush-pleated.jpg', label: L('Pudra burmali ko‘ylak', 'Пудровое платье в складку', 'Blush pleated dress'), garment: 'pleated_dress' },
+  { src: 'images/examples/navy-shirt-jeans.jpg', label: L('To‘q ko‘k rubashka va jinsi', 'Тёмно-синяя рубашка и джинсы', 'Navy shirt and jeans'), garment: 'shirt' },
 ];
 
 type State = { phase: 'pick' } | { phase: 'analyzing'; src: string } | { phase: 'result'; src: string; analysis: Analysis } | { phase: 'error'; src?: string };
@@ -148,7 +149,7 @@ export function VisualSearchModal() {
           </div>
           <div className="mt-8">
             <p className="label">{t(L('Yoki namunani sinab ko‘ring', 'Или попробуйте на примере', 'Or try an example'))}</p>
-            <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               {EXAMPLES.map((ex) => (
                 <button key={ex.src} type="button" onClick={() => run(asset(ex.src), ex.garment)} className="group text-left">
                   <span className="block aspect-[3/4] overflow-hidden rounded-[6px] bg-well">
