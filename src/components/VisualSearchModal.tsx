@@ -18,6 +18,17 @@ const EXAMPLES: { src: string; label: ReturnType<typeof L>; garment: GarmentType
   { src: 'images/examples/khaki-trench.jpg', label: L('Xaki trench', 'Тренч хаки', 'Khaki trench'), garment: 'trench' },
   { src: 'images/examples/blush-pleated.jpg', label: L('Pudra burmali ko‘ylak', 'Пудровое платье в складку', 'Blush pleated dress'), garment: 'pleated_dress' },
   { src: 'images/examples/navy-shirt-jeans.jpg', label: L('To‘q ko‘k rubashka va jinsi', 'Тёмно-синяя рубашка и джинсы', 'Navy shirt and jeans'), garment: 'shirt' },
+  // Real look photos, Unsplash Licence (free commercial use), cropped to 3:4:
+  //   olive-belted-dress   engin akyurt      https://unsplash.com/photos/iIN_YplJMuE
+  //   oat-cardigan-jeans   Heather Ford      https://unsplash.com/photos/5gkYsrH_ebY
+  //   white-tee-grey-jeans Sarah Dorweiler   https://unsplash.com/photos/gUPiTDBdRe4
+  //   black-sport-look     Sincerely Media   https://unsplash.com/photos/-swiLhAa0M8
+  //   red-stripe-denim     Junko Nakase      https://unsplash.com/photos/Q-72wa9-7Dg
+  { src: 'images/examples/olive-belted-dress.jpg', label: L('Zaytun rang belbog‘li ko‘ylak', 'Оливковое платье с поясом', 'Olive belted dress'), garment: 'pleated_dress' },
+  { src: 'images/examples/oat-cardigan-jeans.jpg', label: L('Suli rang kardigan va jinsi', 'Овсяный кардиган и джинсы', 'Oat cardigan and jeans'), garment: 'kimono' },
+  { src: 'images/examples/white-tee-grey-jeans.jpg', label: L('Oq futbolka va kulrang jinsi', 'Белая футболка и серые джинсы', 'White tee and grey jeans'), garment: 'shirt' },
+  { src: 'images/examples/black-sport-look.jpg', label: L('Qora sport obraz', 'Чёрный спортивный образ', 'Black sporty look'), garment: 'jumpsuit' },
+  { src: 'images/examples/red-stripe-denim.jpg', label: L('Qizil yo‘l-yo‘l va jinsi', 'Красная полоска и деним', 'Red stripes and denim'), garment: 'shirt' },
 ];
 
 type State = { phase: 'pick' } | { phase: 'analyzing'; src: string } | { phase: 'result'; src: string; analysis: Analysis } | { phase: 'error'; src?: string };
