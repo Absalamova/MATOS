@@ -12,6 +12,8 @@ import {
   Issue,
   DEPTH_LABEL,
   matchFabrics,
+  PhotoKind,
+  photoKind,
   PortraitAnalysis,
   recommendStyles,
   Season,
@@ -33,8 +35,11 @@ type State =
   | { phase: 'pick' }
   | { phase: 'camera'; slot: Slot }
   | { phase: 'analyzing' }
-  | { phase: 'result'; analysis: PortraitAnalysis; facePhoto: boolean; bodyPhoto: boolean }
+  | { phase: 'result'; analysis: PortraitAnalysis; used: Record<Slot, Use> }
   | { phase: 'error' };
+
+/** What each photo ended up being used for. */
+type Use = { colors: boolean; figure: boolean; kind: PhotoKind } | null;
 
 type ShapeSource = 'photo' | 'measurements' | 'manual';
 
@@ -44,18 +49,33 @@ const SHAPE_KEYS: BodyShape[] = ['hourglass', 'pear', 'inverted', 'rectangle', '
 const sameAsDefault = (m: BodyMeasurements) => m.bustCm === DEFAULT_MEASUREMENTS.bustCm && m.waistCm === DEFAULT_MEASUREMENTS.waistCm && m.hipsCm === DEFAULT_MEASUREMENTS.hipsCm;
 
 /**
- * Colours come from the face photo (or the body photo when that is all we have);
- * the figure comes only from a full-length photo. Either photo alone is enough to start.
+ * Each photo is used for what it actually shows, whichever slot it was put in: colours come from
+ * the photo with the biggest face (a close-up beats a full-length shot), the figure from any photo
+ * where a whole body could be read. A face-only selfie is therefore enough on its own.
  */
-function merge(face: PortraitAnalysis | null, body: PortraitAnalysis | null): PortraitAnalysis {
-  const coloring = face?.coloring ?? body?.coloring ?? null;
-  const silhouette = body?.silhouette ?? face?.silhouette ?? null;
+function merge(face: PortraitAnalysis | null, body: PortraitAnalysis | null): { analysis: PortraitAnalysis; used: Record<Slot, Use> } {
+  const shots = (
+    [
+      ['face', face],
+      ['body', body],
+    ] as const
+  ).filter((x): x is readonly [Slot, PortraitAnalysis] => !!x[1]);
+  const colorShot = shots.filter(([, a]) => a.coloring).sort(([, a], [, b]) => b.coloring!.faceShare - a.coloring!.faceShare)[0];
+  const figureShot = shots.filter(([, a]) => a.silhouette).sort(([, a], [, b]) => b.silhouette!.confidence - a.silhouette!.confidence)[0];
+  const coloring = colorShot?.[1].coloring ?? null;
+  const silhouette = figureShot?.[1].silhouette ?? null;
+
   const issues: Issue[] = [];
   if (!coloring) issues.push('no-skin');
-  if ((face ?? body)?.issues.includes('too-dark') && !coloring) issues.push('too-dark');
-  // a missing figure is only a problem when the shopper actually gave us a full-length photo
-  if (body && !silhouette) issues.push(...body.issues.filter((i) => i === 'busy-background' || i === 'not-full-body'));
-  return { coloring, silhouette, issues };
+  // a dark photo still yields a colour, just not one to trust
+  if ((colorShot?.[1] ?? face ?? body)?.issues.includes('too-dark')) issues.push('too-dark');
+  // a missing figure is only a problem when the shopper meant to give us one: a close-up in the
+  // full-length slot is simply a second face photo, not a failed body photo
+  if (body && !silhouette && photoKind(body) !== 'face') issues.push(...body.issues.filter((i) => i === 'busy-background' || i === 'not-full-body'));
+
+  const use = (slot: Slot, a: PortraitAnalysis | null): Use =>
+    a && { colors: colorShot?.[0] === slot, figure: figureShot?.[0] === slot, kind: photoKind(a) };
+  return { analysis: { coloring, silhouette, issues }, used: { face: use('face', face), body: use('body', body) } };
 }
 
 export function StyleAdvisorModal() {
@@ -106,9 +126,9 @@ export function StyleAdvisorModal() {
         new Promise((r) => setTimeout(r, 500)),
       ]);
       if (id !== runId.current) return; // photos changed meanwhile
-      const analysis = merge(fa, ba);
+      const { analysis, used } = merge(fa, ba);
       setShapeSource(analysis.silhouette && analysis.silhouette.confidence >= 0.4 ? 'photo' : 'measurements');
-      setState({ phase: 'result', analysis, facePhoto: !!face, bodyPhoto: !!body });
+      setState({ phase: 'result', analysis, used });
     } catch {
       if (id === runId.current) setState({ phase: 'error' });
     }
@@ -254,6 +274,11 @@ export function StyleAdvisorModal() {
               'Yuzingiz rasmidan teri va soch rangingizga mos ranglarni, to‘liq bo‘y rasmidan esa qomatingizga mos fasonlarni tanlaymiz. Bittasi ham yetarli.',
               'По фото лица подберём цвета под тон кожи и волос, по фото в полный рост — фасоны под фигуру. Достаточно и одного фото.',
               'From a face photo we pick colours for your skin and hair; from a full-length photo, styles for your figure. Either one is enough.',
+            ))}{' '}
+            {t(L(
+              'Faqat yuzingizni suratga olsangiz ham bo‘ladi — qomat uchun o‘lchamlaringizni keyin kiritasiz.',
+              'Можно сфотографировать только лицо — мерки для фигуры введёте потом.',
+              'A face-only photo is fine too — you can add your measurements for the figure afterwards.',
             ))}
           </p>
           <p className="mt-3 flex items-start gap-2 text-[13.5px] text-graphite">
@@ -285,8 +310,8 @@ export function StyleAdvisorModal() {
         <CameraCapture
           t={t}
           mode={state.slot}
-          onCapture={(b) => {
-            setPhoto(state.slot, b);
+          onCapture={(b, slot) => {
+            setPhoto(slot, b);
             setState({ phase: 'pick' });
           }}
           onCancel={() => setState({ phase: 'pick' })}
@@ -324,11 +349,31 @@ export function StyleAdvisorModal() {
         <div className="grid gap-6 px-5 py-6 sm:px-8 lg:grid-cols-[220px_1fr] lg:gap-8">
           <div className="flex items-end gap-3 lg:block">
             <div className="flex gap-2 lg:grid lg:grid-cols-1">
-              {[photos.face, photos.body].filter(Boolean).map((src) => (
-                <div key={src} className="aspect-[3/4] w-20 shrink-0 overflow-hidden rounded-[6px] bg-well lg:w-auto">
-                  <img src={src!} alt={t(L('Sizning rasmingiz', 'Ваше фото', 'Your photo'))} className="h-full w-full object-contain" />
-                </div>
-              ))}
+              {(['face', 'body'] as const).map((slot) => {
+                const src = photos[slot];
+                const u = state.used[slot];
+                if (!src) return null;
+                const what =
+                  u?.colors && u.figure
+                    ? L('ranglar va qomat uchun', 'для цветов и фигуры', 'used for colours and figure')
+                    : u?.colors
+                      ? u.kind === 'face'
+                        ? L('yuz — ranglar uchun', 'лицо — для цветов', 'face — used for colours')
+                        : L('ranglar uchun', 'для цветов', 'used for colours')
+                      : u?.figure
+                        ? L('qomat uchun', 'для фигуры', 'used for figure')
+                        : u?.kind === 'face'
+                          ? L('yuz — boshqa rasm aniqroq', 'лицо — другое фото чётче', 'face — the other photo was clearer')
+                          : L('ishlatilmadi', 'не использовано', 'not used');
+                return (
+                  <figure key={slot} className="w-20 shrink-0 lg:w-auto">
+                    <div className="aspect-[3/4] overflow-hidden rounded-[6px] bg-well">
+                      <img src={src} alt={t(L('Sizning rasmingiz', 'Ваше фото', 'Your photo'))} className="h-full w-full object-contain" />
+                    </div>
+                    <figcaption className="mt-1 text-[11.5px] leading-tight text-graphite">{t(what)}</figcaption>
+                  </figure>
+                );
+              })}
             </div>
             <div className="lg:mt-3">
               <button type="button" className="btn btn-secondary btn-sm lg:w-full" onClick={() => setState({ phase: 'pick' })}>
@@ -579,25 +624,31 @@ function Tip({ n, text }: { n: number; text: string }) {
   );
 }
 
-/** Live camera with a face or full-body guide, and a self-timer so a full-length shot can be taken alone. */
+/**
+ * Live camera with a face or full-body guide (switchable in place, so a shopper who only wants a
+ * selfie is never stuck with the full-length outline), a low-light warning, and a self-timer so a
+ * full-length shot can be taken alone.
+ */
 function CameraCapture({
   t,
-  mode,
+  mode: initialMode,
   onCapture,
   onCancel,
   onFail,
 }: {
   t: ReturnType<typeof useApp>['t'];
-  mode: 'face' | 'body';
-  onCapture: (b: Blob) => void;
+  mode: Slot;
+  onCapture: (b: Blob, slot: Slot) => void;
   onCancel: () => void;
   onFail: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const [mode, setMode] = useState<Slot>(initialMode);
   const [facing, setFacing] = useState<'user' | 'environment'>('user');
   const [ready, setReady] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [dark, setDark] = useState(false);
   const onFailRef = useRef(onFail);
   onFailRef.current = onFail;
 
@@ -639,8 +690,27 @@ function CameraCapture({
       ctx.scale(-1, 1);
     }
     ctx.drawImage(v, 0, 0);
-    c.toBlob((b) => b && onCapture(b), 'image/jpeg', 0.9);
-  }, [facing, onCapture]);
+    c.toBlob((b) => b && onCapture(b, mode), 'image/jpeg', 0.9);
+  }, [facing, mode, onCapture]);
+
+  // Low light is the most common reason the skin tone can't be read; say so before the shot.
+  useEffect(() => {
+    if (!ready) return;
+    const c = document.createElement('canvas');
+    c.width = c.height = 24;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return;
+    const id = window.setInterval(() => {
+      const v = videoRef.current;
+      if (!v || !v.videoWidth) return;
+      ctx.drawImage(v, 0, 0, 24, 24);
+      const d = ctx.getImageData(0, 0, 24, 24).data;
+      let y = 0;
+      for (let i = 0; i < d.length; i += 4) y += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      setDark(y / (d.length / 4) < 70);
+    }, 700);
+    return () => window.clearInterval(id);
+  }, [ready]);
 
   useEffect(() => {
     if (countdown === null) return;
@@ -655,6 +725,23 @@ function CameraCapture({
 
   return (
     <div className="px-5 py-6 sm:px-8">
+      <div className="mb-3 flex justify-center">
+        <div className="inline-flex rounded-full border border-line p-0.5" role="radiogroup" aria-label={t(L('Nimani suratga olamiz', 'Что снимаем', 'What to photograph'))}>
+          {(['face', 'body'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="radio"
+              aria-checked={mode === m}
+              onClick={() => setMode(m)}
+              className={`flex h-8 items-center gap-1.5 rounded-full px-3.5 text-[13px] transition-colors ${mode === m ? 'bg-ink text-white' : 'text-graphite hover:text-ink'}`}
+            >
+              {m === 'face' ? <ScanFace className="h-4 w-4" /> : <PersonStanding className="h-4 w-4" />}
+              {m === 'face' ? t(L('Faqat yuz', 'Только лицо', 'Face only')) : t(L('To‘liq bo‘y', 'В полный рост', 'Full length'))}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="relative mx-auto aspect-[3/4] max-h-[62vh] overflow-hidden rounded-xl bg-ink">
         <video ref={videoRef} playsInline muted className="h-full w-full object-cover" style={facing === 'user' ? { transform: 'scaleX(-1)' } : undefined} />
         <svg viewBox="0 0 60 80" className="pointer-events-none absolute inset-0 h-full w-full opacity-60" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
@@ -673,6 +760,15 @@ function CameraCapture({
             />
           )}
         </svg>
+        {dark && (
+          <p className="absolute inset-x-3 top-3 rounded-lg bg-black/60 px-3 py-2 text-center text-[12.5px] text-white" role="status">
+            {t(L(
+              'Yorug‘lik kam — rang noto‘g‘ri chiqadi. Deraza yoki chiroq tomonga qarang.',
+              'Мало света — цвет исказится. Повернитесь к окну или лампе.',
+              'Too dark — colours will be off. Face a window or a lamp.',
+            ))}
+          </p>
+        )}
         {countdown !== null && countdown > 0 && (
           <div className="absolute inset-0 flex items-center justify-center font-display text-[96px] text-white" aria-live="assertive">
             {countdown}

@@ -40,6 +40,8 @@ export interface Coloring {
   undertone: Undertone;
   depth: Depth;
   contrast: Contrast;
+  /** share of the frame the face covers: ~0.1–0.5 for a close-up, ~0.01 in a full-length photo */
+  faceShare: number;
 }
 
 export interface Silhouette {
@@ -213,7 +215,20 @@ export function analyzeColoring(px: Pixels, bg: Lab | null, labs: Lab[]): Colori
     undertone,
     depth: depthOf(skinLab),
     contrast: contrastOf(skinLab[0], hairLab ? hairLab[0] : null),
+    faceShare: faceRegion ? faceRegion.pixels.length / (w * h) : 0,
   };
+}
+
+/** A face this big can only be a close-up, whichever slot the shopper put the photo in. */
+export const CLOSE_UP_SHARE = 0.05;
+
+export type PhotoKind = 'face' | 'body' | 'unknown';
+
+/** What a photo turned out to be: a face close-up, a full-length figure, or neither. */
+export function photoKind(a: PortraitAnalysis): PhotoKind {
+  if (a.silhouette) return 'body';
+  if (a.coloring && a.coloring.faceShare >= CLOSE_UP_SHARE) return 'face';
+  return 'unknown';
 }
 
 /* ───────────────────────── body shape ───────────────────────── */
