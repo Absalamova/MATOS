@@ -131,43 +131,60 @@ export function seasonFor(undertone: Undertone, depth: Depth, contrast: Contrast
 export function analyzeColoring(px: Pixels, bg: Lab | null, labs: Lab[]): Coloring | null {
   const { data, width: w, height: h } = px;
   const skin = new Uint8Array(w * h);
-  const rows = new Int32Array(h);
   let total = 0;
   for (let i = 0; i < w * h; i++) {
     if (bg && deltaE(labs[i], bg) < 10) continue; // beige walls and wood read as skin
     if (isSkin(data[i * 4], data[i * 4 + 1], data[i * 4 + 2])) {
       skin[i] = 1;
-      rows[(i / w) | 0]++;
       total++;
     }
   }
   if (total < Math.max(30, w * h * 0.004)) return null;
 
-  // The topmost band of skin rows is the face (and neck): arms and legs tan differently.
-  const minRow = Math.max(2, Math.round(w * 0.03));
-  let top = 0;
-  while (top < h && rows[top] < minRow) top++;
-  let bottom = top;
-  let gap = 0;
-  while (bottom + 1 < h && bottom - top < h * 0.4) {
-    if (rows[bottom + 1] >= minRow) gap = 0;
-    else if (++gap > 3) break;
-    bottom++;
+  // Erode once: hair/wall and hair/skin edges blend into skin-like colours and form thin rings.
+  const core = new Uint8Array(w * h);
+  for (let y = 1; y < h - 1; y++)
+    for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      core[i] = skin[i] & skin[i - 1] & skin[i + 1] & skin[i - w] & skin[i + w];
+    }
+  // Connected skin regions; the face is the topmost one of a meaningful size (arms and legs tan differently).
+  const label = new Int32Array(w * h).fill(-1);
+  const regions: { pixels: number[]; top: number; x0: number; x1: number; y1: number }[] = [];
+  const stack: number[] = [];
+  for (let start = 0; start < w * h; start++) {
+    if (!core[start] || label[start] >= 0) continue;
+    const r = { pixels: [] as number[], top: h, x0: w, x1: 0, y1: 0 };
+    label[start] = regions.length;
+    stack.push(start);
+    while (stack.length) {
+      const i = stack.pop()!;
+      const x = i % w;
+      const y = (i / w) | 0;
+      r.pixels.push(i);
+      if (y < r.top) r.top = y;
+      if (y > r.y1) r.y1 = y;
+      if (x < r.x0) r.x0 = x;
+      if (x > r.x1) r.x1 = x;
+      for (const j of [i - 1, i + 1, i - w, i + w])
+        if (j >= 0 && j < w * h && core[j] && label[j] < 0 && Math.abs((j % w) - x) <= 1) {
+          label[j] = regions.length;
+          stack.push(j);
+        }
+    }
+    regions.push(r);
   }
-  let x0 = w;
-  let x1 = 0;
-  let face: Lab[] = [];
-  for (let y = top; y <= bottom; y++)
-    for (let x = 0; x < w; x++)
-      if (skin[y * w + x]) {
-        face.push(labs[y * w + x]);
-        if (x < x0) x0 = x;
-        if (x > x1) x1 = x;
-      }
-  if (face.length < 30) {
+  const largest = Math.max(0, ...regions.map((r) => r.pixels.length));
+  const faceRegion = regions.filter((r) => r.pixels.length >= Math.max(20, largest * 0.2)).sort((a, b) => a.top - b.top)[0];
+  let face: Lab[] = faceRegion ? faceRegion.pixels.map((i) => labs[i]) : [];
+  if (face.length < 20) {
     face = [];
     for (let i = 0; i < w * h; i++) if (skin[i]) face.push(labs[i]);
   }
+  const top = faceRegion?.top ?? 0;
+  const bottom = faceRegion ? Math.min(faceRegion.y1, top + Math.round(h * 0.4)) : h - 1;
+  const x0 = faceRegion?.x0 ?? 0;
+  const x1 = faceRegion?.x1 ?? w - 1;
 
   // Grey-world against a near-neutral wall: undo most of the camera's colour cast.
   const cast: [number, number] = bg && bg[0] > 35 && Math.hypot(bg[1], bg[2]) < 22 ? [bg[1] * 0.7, bg[2] * 0.7] : [0, 0];

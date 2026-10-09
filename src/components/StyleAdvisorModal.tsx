@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, Check, ImageUp, Plus, ShieldCheck, SwitchCamera, Timer } from 'lucide-react';
+import { Camera, Check, ImageUp, PersonStanding, Plus, ScanFace, ShieldCheck, Sparkles, SwitchCamera, Timer, X } from 'lucide-react';
 import { useApp } from '../state/app';
 import { L, UI } from '../lib/i18n';
 import { formatMoney, pricePerUnit } from '../lib/format';
@@ -9,6 +9,7 @@ import {
   analyzePortrait,
   BodyShape,
   CONTRAST_LABEL,
+  Issue,
   DEPTH_LABEL,
   matchFabrics,
   PortraitAnalysis,
@@ -25,11 +26,14 @@ import { FabricImage } from './ui/FabricImage';
 import { GarmentIcon } from './ui/GarmentIcon';
 import type { BodyMeasurements } from '../types';
 
+type Slot = 'face' | 'body';
+type Photos = Record<Slot, string | null>;
+
 type State =
   | { phase: 'pick' }
-  | { phase: 'camera' }
-  | { phase: 'analyzing'; src: string }
-  | { phase: 'result'; src: string; analysis: PortraitAnalysis }
+  | { phase: 'camera'; slot: Slot }
+  | { phase: 'analyzing' }
+  | { phase: 'result'; analysis: PortraitAnalysis; facePhoto: boolean; bodyPhoto: boolean }
   | { phase: 'error' };
 
 type ShapeSource = 'photo' | 'measurements' | 'manual';
@@ -39,63 +43,95 @@ const SEASON_KEYS: Season[] = ['spring', 'summer', 'autumn', 'winter'];
 const SHAPE_KEYS: BodyShape[] = ['hourglass', 'pear', 'inverted', 'rectangle', 'apple'];
 const sameAsDefault = (m: BodyMeasurements) => m.bustCm === DEFAULT_MEASUREMENTS.bustCm && m.waistCm === DEFAULT_MEASUREMENTS.waistCm && m.hipsCm === DEFAULT_MEASUREMENTS.hipsCm;
 
+/**
+ * Colours come from the face photo (or the body photo when that is all we have);
+ * the figure comes only from a full-length photo. Either photo alone is enough to start.
+ */
+function merge(face: PortraitAnalysis | null, body: PortraitAnalysis | null): PortraitAnalysis {
+  const coloring = face?.coloring ?? body?.coloring ?? null;
+  const silhouette = body?.silhouette ?? face?.silhouette ?? null;
+  const issues: Issue[] = [];
+  if (!coloring) issues.push('no-skin');
+  if ((face ?? body)?.issues.includes('too-dark') && !coloring) issues.push('too-dark');
+  // a missing figure is only a problem when the shopper actually gave us a full-length photo
+  if (body && !silhouette) issues.push(...body.issues.filter((i) => i === 'busy-background' || i === 'not-full-body'));
+  return { coloring, silhouette, issues };
+}
+
 export function StyleAdvisorModal() {
   const { t, lang, currency, unit, overlay, close, fabrics, hasSample, toggleSample, measurements, setMeasurements } = useApp();
   const isOpen = overlay === 'style';
   const [state, setState] = useState<State>({ phase: 'pick' });
+  const [photos, setPhotos] = useState<Photos>({ face: null, body: null });
+  const [badFile, setBadFile] = useState(false);
   const [season, setSeason] = useState<Season | null>(null);
   const [shape, setShape] = useState<BodyShape | null>(null);
   const [shapeSource, setShapeSource] = useState<ShapeSource>('measurements');
   const [form, setForm] = useState({ bustCm: '', waistCm: '', hipsCm: '' });
   const fileRef = useRef<HTMLInputElement>(null);
   const camInputRef = useRef<HTMLInputElement>(null);
-  const urlRef = useRef<string | null>(null);
+  const slotRef = useRef<Slot>('face');
+  const photosRef = useRef<Photos>(photos);
+  photosRef.current = photos;
+  const runId = useRef(0);
 
-  /** Only one photo lives in memory at a time; it is released as soon as it is replaced or the window closes. */
-  const releasePhoto = useCallback(() => {
-    if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-    urlRef.current = null;
+  /** Photos live only as object URLs in this window; each is released when replaced, removed or the window closes. */
+  const setPhoto = useCallback((slot: Slot, blob: Blob | null) => {
+    setPhotos((p) => {
+      if (p[slot]) URL.revokeObjectURL(p[slot]!);
+      return { ...p, [slot]: blob ? URL.createObjectURL(blob) : null };
+    });
   }, []);
 
-  const run = useCallback(
-    async (blob: Blob) => {
-      releasePhoto();
-      const src = URL.createObjectURL(blob);
-      urlRef.current = src;
-      setState({ phase: 'analyzing', src });
-      setSeason(null);
-      setShape(null);
-      try {
-        const [analysis] = await Promise.all([analyzePortrait(src), new Promise((r) => setTimeout(r, 500))]);
-        if (urlRef.current !== src) return; // a newer photo replaced this one
-        setShapeSource(analysis.silhouette && analysis.silhouette.confidence >= 0.4 ? 'photo' : 'measurements');
-        setState({ phase: 'result', src, analysis });
-      } catch {
-        if (urlRef.current === src) {
-          releasePhoto();
-          setState({ phase: 'error' });
-        }
-      }
-    },
-    [releasePhoto],
-  );
+  const releaseAll = useCallback(() => {
+    const p = photosRef.current;
+    if (p.face) URL.revokeObjectURL(p.face);
+    if (p.body) URL.revokeObjectURL(p.body);
+    setPhotos({ face: null, body: null });
+  }, []);
+
+  useEffect(() => releaseAll, [releaseAll]);
+
+  const analyze = useCallback(async () => {
+    const { face, body } = photosRef.current;
+    if (!face && !body) return;
+    const id = ++runId.current;
+    setState({ phase: 'analyzing' });
+    setSeason(null);
+    setShape(null);
+    try {
+      const [fa, ba] = await Promise.all([
+        face ? analyzePortrait(face) : Promise.resolve(null),
+        body ? analyzePortrait(body) : Promise.resolve(null),
+        new Promise((r) => setTimeout(r, 500)),
+      ]);
+      if (id !== runId.current) return; // photos changed meanwhile
+      const analysis = merge(fa, ba);
+      setShapeSource(analysis.silhouette && analysis.silhouette.confidence >= 0.4 ? 'photo' : 'measurements');
+      setState({ phase: 'result', analysis, facePhoto: !!face, bodyPhoto: !!body });
+    } catch {
+      if (id === runId.current) setState({ phase: 'error' });
+    }
+  }, []);
 
   const readFile = useCallback(
-    (file?: File | null) => {
+    (file: File | null | undefined, slot: Slot) => {
       if (!file) return;
       if (!file.type.startsWith('image/') || file.size > MAX_BYTES) {
-        setState({ phase: 'error' });
+        setBadFile(true);
         return;
       }
-      run(file);
+      setBadFile(false);
+      setPhoto(slot, file);
     },
-    [run],
+    [setPhoto],
   );
 
   const onClose = () => {
     close();
+    runId.current++;
     setTimeout(() => {
-      releasePhoto();
+      releaseAll();
       setState({ phase: 'pick' });
     }, 200);
   };
@@ -106,10 +142,13 @@ export function StyleAdvisorModal() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  useEffect(() => releasePhoto, [releasePhoto]);
-
-  const openCamera = () => {
-    if (typeof navigator.mediaDevices?.getUserMedia === 'function' && window.isSecureContext) setState({ phase: 'camera' });
+  const upload = (slot: Slot) => {
+    slotRef.current = slot;
+    fileRef.current?.click();
+  };
+  const openCamera = (slot: Slot) => {
+    slotRef.current = slot;
+    if (typeof navigator.mediaDevices?.getUserMedia === 'function' && window.isSecureContext) setState({ phase: 'camera', slot });
     else camInputRef.current?.click();
   };
 
@@ -139,60 +178,105 @@ export function StyleAdvisorModal() {
     const out: string[] = [];
     if (a.issues.includes('too-dark')) out.push(t(L('Rasm juda qorong‘i — kunduzgi yorug‘likda qayta suratga oling.', 'Фото слишком тёмное — переснимите при дневном свете.', 'The photo is too dark — retake it in daylight.')));
     if (a.issues.includes('no-skin'))
-      out.push(t(L('Yuz teri rangini aniqlay olmadik. Rang tipingizni quyida o‘zingiz tanlang.', 'Не удалось определить тон кожи. Выберите цветотип ниже.', 'We couldn’t read your skin tone. Pick your colour type below.')));
+      out.push(t(L('Yuz teri rangini aniqlay olmadik. Yuzingiz yaqindan, yorug‘da tushgan rasmni qo‘shing yoki rang tipingizni quyida o‘zingiz tanlang.', 'Не удалось определить тон кожи. Добавьте светлое фото лица крупным планом или выберите цветотип ниже.', 'We couldn’t read your skin tone. Add a well-lit close-up of your face, or pick your colour type below.')));
     if (a.issues.includes('busy-background') || a.issues.includes('not-full-body'))
       out.push(
         t(L(
-          'Rasmdan qomatni o‘qib bo‘lmadi. Buning uchun bo‘yingiz to‘liq ko‘rinadigan, qo‘llar tanadan biroz ochiq, oddiy devor oldida tushgan rasm kerak. Hozircha o‘lchamlaringiz bo‘yicha hisobladik.',
-          'Фигуру по фото прочитать не удалось: нужно фото в полный рост, руки чуть в стороны, на фоне ровной стены. Пока считаем по вашим меркам.',
-          'We couldn’t read your figure: we need a full-length photo, arms slightly away from the body, against a plain wall. For now we used your measurements.',
+          'Bo‘y rasmidan qomatni o‘qib bo‘lmadi: bo‘yingiz to‘liq ko‘rinadigan, qo‘llar tanadan biroz ochiq, oddiy devor oldida tushgan rasm kerak. Hozircha o‘lchamlaringiz bo‘yicha hisobladik.',
+          'По фото в рост фигуру прочитать не удалось: нужен полный рост, руки чуть в стороны, ровная стена. Пока считаем по вашим меркам.',
+          'We couldn’t read your figure from the full-length photo: show your whole body, arms slightly out, against a plain wall. For now we used your measurements.',
         )),
       );
     return out;
   };
 
+  const slotCard = (slot: Slot) => {
+    const src = photos[slot];
+    const face = slot === 'face';
+    return (
+      <div
+        className="flex flex-col rounded-2xl border-2 border-dashed border-line p-4"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => { e.preventDefault(); readFile(e.dataTransfer.files?.[0], slot); }}
+      >
+        <div className="flex items-start gap-4">
+          <div className="flex aspect-[3/4] w-24 shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-well">
+            {src ? (
+              <img src={src} alt="" className="h-full w-full object-cover" />
+            ) : face ? (
+              <ScanFace className="h-9 w-9 text-graphite" strokeWidth={1.2} />
+            ) : (
+              <PersonStanding className="h-10 w-10 text-graphite" strokeWidth={1.2} />
+            )}
+          </div>
+          <div className="min-w-0">
+            <p className="font-medium">
+              {face ? t(L('Yuz rasmi', 'Фото лица', 'Face photo')) : t(L('To‘liq bo‘y rasmi', 'Фото в полный рост', 'Full-length photo'))}
+              <span className="ml-1.5 text-[12.5px] font-normal text-graphite">
+                {face ? t(L('— ranglar uchun', '— для цветов', '— for colours')) : t(L('— fasonlar uchun, ixtiyoriy', '— для фасонов, по желанию', '— for styles, optional'))}
+              </span>
+            </p>
+            <p className="mt-1 text-[13px] text-graphite">
+              {face
+                ? t(L('Yuzingiz yaqindan, kunduzgi yorug‘likda, filtr va makiyajsiz. Sochingiz ko‘rinsa yaxshi.', 'Лицо крупно, при дневном свете, без фильтров и макияжа. Хорошо, если видны волосы.', 'A close-up in daylight, no filters or make-up. Better if your hair shows.'))
+                : t(L('Boshdan oyoqqacha, oddiy devor oldida, qo‘llar biroz yonga ochiq.', 'С головы до ног, у ровной стены, руки чуть в стороны.', 'Head to toe, against a plain wall, arms slightly out.'))}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" className={`btn btn-sm ${face && !src ? 'btn-primary' : 'btn-secondary'}`} onClick={() => openCamera(slot)} data-autofocus={face ? true : undefined}>
+                <Camera className="h-4 w-4" />
+                {src ? t(L('Qayta olish', 'Переснять', 'Retake')) : t(L('Suratga olish', 'Сфотографировать', 'Take photo'))}
+              </button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => upload(slot)}>
+                <ImageUp className="h-4 w-4" />
+                {t(L('Yuklash', 'Загрузить', 'Upload'))}
+              </button>
+              {src && (
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPhoto(slot, null)} aria-label={t(UI.remove)}>
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Dialog open={isOpen} onClose={onClose} title={t(L('Sizga mos uslub va ranglar', 'Ваш стиль и цвета', 'Your styles and colours'))} size="xl" closeLabel={t(UI.close)}>
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { readFile(e.target.files?.[0]); e.target.value = ''; }} />
-      <input ref={camInputRef} type="file" accept="image/*" capture="user" className="hidden" onChange={(e) => { readFile(e.target.files?.[0]); e.target.value = ''; }} />
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { readFile(e.target.files?.[0], slotRef.current); e.target.value = ''; }} />
+      <input ref={camInputRef} type="file" accept="image/*" capture="user" className="hidden" onChange={(e) => { readFile(e.target.files?.[0], slotRef.current); e.target.value = ''; }} />
 
       {state.phase === 'pick' && (
         <div className="px-5 py-6 sm:px-8 sm:py-8">
-          <p className="max-w-[62ch] text-graphite">
+          <p className="max-w-[66ch] text-graphite">
             {t(L(
-              'O‘zingizning rasmingizni yuklang yoki kamerada suratga tushing. Teri va soch rangingizdan sizga mos ranglarni, tana tuzilishingizdan esa mos fasonlarni tanlab beramiz.',
-              'Загрузите своё фото или сфотографируйтесь. По тону кожи и волос подберём ваши цвета, по фигуре — подходящие фасоны.',
-              'Upload a photo of yourself or take one now. We pick your colours from your skin and hair, and your styles from your figure.',
+              'Yuzingiz rasmidan teri va soch rangingizga mos ranglarni, to‘liq bo‘y rasmidan esa qomatingizga mos fasonlarni tanlaymiz. Bittasi ham yetarli.',
+              'По фото лица подберём цвета под тон кожи и волос, по фото в полный рост — фасоны под фигуру. Достаточно и одного фото.',
+              'From a face photo we pick colours for your skin and hair; from a full-length photo, styles for your figure. Either one is enough.',
             ))}
           </p>
           <p className="mt-3 flex items-start gap-2 text-[13.5px] text-graphite">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.7} />
             {t(L(
-              'Rasm hech qayerga yuborilmaydi va saqlanmaydi — tahlil faqat shu qurilmada bajariladi.',
-              'Фото никуда не отправляется и не сохраняется — анализ идёт только на этом устройстве.',
-              'Your photo is never sent or stored — the analysis runs only on this device.',
+              'Rasmlar hech qayerga yuborilmaydi va saqlanmaydi — tahlil faqat shu qurilmada bajariladi.',
+              'Фото никуда не отправляются и не сохраняются — анализ идёт только на этом устройстве.',
+              'Your photos are never sent or stored — the analysis runs only on this device.',
             ))}
           </p>
-          <div
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => { e.preventDefault(); readFile(e.dataTransfer.files?.[0]); }}
-            className="mt-6 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-line px-6 py-10 text-center"
-          >
-            <div className="flex flex-wrap justify-center gap-3">
-              <button type="button" className="btn btn-primary" onClick={openCamera} data-autofocus>
-                <Camera className="h-4 w-4" />
-                {t(L('Kamerada suratga tushish', 'Сфотографироваться', 'Take a photo'))}
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={() => fileRef.current?.click()}>
-                <ImageUp className="h-4 w-4" />
-                {t(L('Rasm yuklash', 'Загрузить фото', 'Upload a photo'))}
-              </button>
-            </div>
+          <div className="mt-6 grid gap-3 md:grid-cols-2">
+            {slotCard('face')}
+            {slotCard('body')}
           </div>
-          <div className="mt-6 grid gap-3 text-[13.5px] text-graphite sm:grid-cols-3">
-            <Tip n={1} text={t(L('Kunduzgi yorug‘lik, deraza oldida; filtr va makiyajsiz.', 'Дневной свет у окна, без фильтров и макияжа.', 'Daylight by a window, no filters or make-up.'))} />
-            <Tip n={2} text={t(L('Oddiy, och rangli devor oldida turing.', 'Встаньте у ровной светлой стены.', 'Stand in front of a plain, light wall.'))} />
-            <Tip n={3} text={t(L('Fason uchun — bo‘yingiz to‘liq, qo‘llar tanadan biroz ochiq, yopishib turgan kiyimda.', 'Для фасонов — в полный рост, руки чуть в стороны, в облегающей одежде.', 'For styles — full length, arms slightly away from the body, in fitted clothes.'))} />
+          {badFile && <p className="mt-3 text-[13.5px] text-danger">{t(L('25 MB gacha JPG, PNG yoki WEBP rasm tanlang.', 'Выберите JPG, PNG или WEBP до 25 МБ.', 'Choose a JPG, PNG or WEBP up to 25 MB.'))}</p>}
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <button type="button" className="btn btn-primary" disabled={!photos.face && !photos.body} onClick={analyze}>
+              <Sparkles className="h-4 w-4" />
+              {t(L('Menga mosini ko‘rsat', 'Показать, что мне идёт', 'Show what suits me'))}
+            </button>
+            {!photos.face && !photos.body && (
+              <span className="text-[13px] text-muted">{t(L('Avval kamida bitta rasm qo‘shing', 'Сначала добавьте хотя бы одно фото', 'Add at least one photo first'))}</span>
+            )}
           </div>
         </div>
       )}
@@ -200,7 +284,11 @@ export function StyleAdvisorModal() {
       {state.phase === 'camera' && (
         <CameraCapture
           t={t}
-          onCapture={run}
+          mode={state.slot}
+          onCapture={(b) => {
+            setPhoto(state.slot, b);
+            setState({ phase: 'pick' });
+          }}
           onCancel={() => setState({ phase: 'pick' })}
           onFail={() => {
             setState({ phase: 'pick' });
@@ -211,9 +299,13 @@ export function StyleAdvisorModal() {
 
       {state.phase === 'analyzing' && (
         <div className="flex flex-col items-center px-6 py-14 text-center" role="status">
-          <div className="relative h-64 w-48 overflow-hidden rounded-[6px] bg-well">
-            <img src={state.src} alt="" className="h-full w-full object-cover" />
-            <div className="absolute inset-x-0 top-0 h-1 animate-[scan_1.1s_ease-in-out_infinite] bg-tape" />
+          <div className="flex gap-3">
+            {[photos.face, photos.body].filter(Boolean).map((src) => (
+              <div key={src} className="relative h-64 w-48 overflow-hidden rounded-[6px] bg-well">
+                <img src={src!} alt="" className="h-full w-full object-cover" />
+                <div className="absolute inset-x-0 top-0 h-1 animate-[scan_1.1s_ease-in-out_infinite] bg-tape" />
+              </div>
+            ))}
           </div>
           <p className="mt-6 font-display text-[24px]">{t(L('Rang tipi va qomat aniqlanmoqda…', 'Определяем цветотип и фигуру…', 'Reading your colouring and figure…'))}</p>
           <style>{'@keyframes scan{0%{transform:translateY(0)}50%{transform:translateY(252px)}100%{transform:translateY(0)}}'}</style>
@@ -224,22 +316,26 @@ export function StyleAdvisorModal() {
         <div className="px-6 py-14 text-center">
           <p className="font-display text-[24px]">{t(L('Rasmni o‘qib bo‘lmadi', 'Не удалось прочитать фото', 'Couldn’t read that photo'))}</p>
           <p className="mx-auto mt-2 max-w-md text-graphite">{t(L('25 MB gacha JPG, PNG yoki WEBP rasm tanlang.', 'Выберите JPG, PNG или WEBP до 25 МБ.', 'Choose a JPG, PNG or WEBP up to 25 MB.'))}</p>
-          <button type="button" className="btn btn-primary mt-6" onClick={() => setState({ phase: 'pick' })}>{t(L('Boshqa rasm', 'Другое фото', 'Try another photo'))}</button>
+          <button type="button" className="btn btn-primary mt-6" onClick={() => setState({ phase: 'pick' })}>{t(L('Rasmlarni o‘zgartirish', 'Сменить фото', 'Change photos'))}</button>
         </div>
       )}
 
       {state.phase === 'result' && result && styles && (
         <div className="grid gap-6 px-5 py-6 sm:px-8 lg:grid-cols-[220px_1fr] lg:gap-8">
-          <div className="flex items-end gap-4 lg:block">
-            <div className="aspect-[3/4] w-24 shrink-0 overflow-hidden rounded-[6px] bg-well lg:w-auto">
-              <img src={state.src} alt={t(L('Sizning rasmingiz', 'Ваше фото', 'Your photo'))} className="h-full w-full object-contain" />
+          <div className="flex items-end gap-3 lg:block">
+            <div className="flex gap-2 lg:grid lg:grid-cols-1">
+              {[photos.face, photos.body].filter(Boolean).map((src) => (
+                <div key={src} className="aspect-[3/4] w-20 shrink-0 overflow-hidden rounded-[6px] bg-well lg:w-auto">
+                  <img src={src!} alt={t(L('Sizning rasmingiz', 'Ваше фото', 'Your photo'))} className="h-full w-full object-contain" />
+                </div>
+              ))}
             </div>
             <div className="lg:mt-3">
-              <button type="button" className="btn btn-secondary btn-sm lg:w-full" onClick={() => { releasePhoto(); setState({ phase: 'pick' }); }}>
-                {t(L('Boshqa rasm', 'Другое фото', 'Another photo'))}
+              <button type="button" className="btn btn-secondary btn-sm lg:w-full" onClick={() => setState({ phase: 'pick' })}>
+                {t(L('Rasmlarni o‘zgartirish', 'Сменить фото', 'Change photos'))}
               </button>
               <p className="mt-2 hidden text-[12px] text-muted lg:block">
-                {t(L('Rasm faqat shu oynada turadi va yopilganda o‘chadi.', 'Фото хранится только в этом окне и удаляется при закрытии.', 'The photo stays in this window and is cleared when you close it.'))}
+                {t(L('Rasmlar faqat shu oynada turadi va yopilganda o‘chadi.', 'Фото хранятся только в этом окне и удаляются при закрытии.', 'Photos stay in this window and are cleared when you close it.'))}
               </p>
             </div>
           </div>
@@ -483,8 +579,20 @@ function Tip({ n, text }: { n: number; text: string }) {
   );
 }
 
-/** Live camera with a full-body guide and a self-timer, so a full-length shot can be taken alone. */
-function CameraCapture({ t, onCapture, onCancel, onFail }: { t: ReturnType<typeof useApp>['t']; onCapture: (b: Blob) => void; onCancel: () => void; onFail: () => void }) {
+/** Live camera with a face or full-body guide, and a self-timer so a full-length shot can be taken alone. */
+function CameraCapture({
+  t,
+  mode,
+  onCapture,
+  onCancel,
+  onFail,
+}: {
+  t: ReturnType<typeof useApp>['t'];
+  mode: 'face' | 'body';
+  onCapture: (b: Blob) => void;
+  onCancel: () => void;
+  onFail: () => void;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [facing, setFacing] = useState<'user' | 'environment'>('user');
@@ -550,13 +658,20 @@ function CameraCapture({ t, onCapture, onCancel, onFail }: { t: ReturnType<typeo
       <div className="relative mx-auto aspect-[3/4] max-h-[62vh] overflow-hidden rounded-xl bg-ink">
         <video ref={videoRef} playsInline muted className="h-full w-full object-cover" style={facing === 'user' ? { transform: 'scaleX(-1)' } : undefined} />
         <svg viewBox="0 0 60 80" className="pointer-events-none absolute inset-0 h-full w-full opacity-60" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-          <path
-            d="M30 6 a5 5.6 0 1 1 0 11.2 a5 5.6 0 1 1 0 -11.2 M24 19 Q30 21 36 19 L40 21 L42 36 L39 37 L37 28 L36.5 40 L38 47 L35 74 L31 74 L30 50 L29 74 L25 74 L22 47 L23.5 40 L23 28 L21 37 L18 36 L20 21 Z"
-            fill="none"
-            stroke="#fff"
-            strokeWidth="0.5"
-            strokeDasharray="1.4 1"
-          />
+          {mode === 'face' ? (
+            <>
+              <ellipse cx="30" cy="36" rx="13" ry="17" fill="none" stroke="#fff" strokeWidth="0.5" strokeDasharray="1.4 1" />
+              <path d="M14 78 Q16 60 30 58 Q44 60 46 78" fill="none" stroke="#fff" strokeWidth="0.5" strokeDasharray="1.4 1" />
+            </>
+          ) : (
+            <path
+              d="M30 6 a5 5.6 0 1 1 0 11.2 a5 5.6 0 1 1 0 -11.2 M24 19 Q30 21 36 19 L40 21 L42 36 L39 37 L37 28 L36.5 40 L38 47 L35 74 L31 74 L30 50 L29 74 L25 74 L22 47 L23.5 40 L23 28 L21 37 L18 36 L20 21 Z"
+              fill="none"
+              stroke="#fff"
+              strokeWidth="0.5"
+              strokeDasharray="1.4 1"
+            />
+          )}
         </svg>
         {countdown !== null && countdown > 0 && (
           <div className="absolute inset-0 flex items-center justify-center font-display text-[96px] text-white" aria-live="assertive">
@@ -565,7 +680,9 @@ function CameraCapture({ t, onCapture, onCancel, onFail }: { t: ReturnType<typeo
         )}
       </div>
       <p className="mt-3 text-center text-[13.5px] text-graphite">
-        {t(L('Shablon ichiga to‘liq kiring, qo‘llarni biroz yonga oching.', 'Встаньте в контур целиком, руки чуть в стороны.', 'Fit your whole body in the outline, arms slightly out.'))}
+        {mode === 'face'
+          ? t(L('Yuzingizni oval ichiga joylang, deraza tomonga qarang.', 'Поместите лицо в овал, повернитесь к окну.', 'Fit your face in the oval and face the window.'))
+          : t(L('Shablon ichiga to‘liq kiring, qo‘llarni biroz yonga oching.', 'Встаньте в контур целиком, руки чуть в стороны.', 'Fit your whole body in the outline, arms slightly out.'))}
       </p>
       <div className="mt-4 flex flex-wrap justify-center gap-2">
         <button type="button" className="btn btn-secondary" onClick={onCancel}>{t(UI.back)}</button>

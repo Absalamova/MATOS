@@ -161,11 +161,30 @@ export async function analyzePhoto(src: string): Promise<Analysis> {
   const texture = n ? hf / n : 0;
   const sheen = n ? bright / n : 0;
   // two strongly different colours, both well represented → a print or check
+  // ...but only if they interleave. Two separate garments (navy shirt over pale jeans) are two
+  // big blocks with a short shared edge; a check or ikat has an edge every few pixels.
+  const clusterAt = new Int16Array(w * h).fill(-1);
+  pool.forEach((p, idx) => (clusterAt[p.i] = assign[idx]));
+  const interleaved = (a: number, b: number) => {
+    let edges = 0;
+    let na = 0;
+    let nb = 0;
+    for (let i = 0; i < w * h; i++) {
+      const c = clusterAt[i];
+      if (c === a) na++;
+      else if (c === b) nb++;
+      else continue;
+      const other = c === a ? b : a;
+      if (i % w < w - 1 && clusterAt[i + 1] === other) edges++;
+      if (i + w < w * h && clusterAt[i + w] === other) edges++;
+    }
+    return edges / Math.max(1, Math.min(na, nb)) > 0.18;
+  };
   const contrasting = clusters.filter((x) => x.share > 0.12);
   let patterned = false;
   for (let i = 0; i < contrasting.length && !patterned; i++)
     for (let j = i + 1; j < contrasting.length; j++)
-      if (deltaE(contrasting[i].lab, contrasting[j].lab) > 40 && texture > 4) patterned = true;
+      if (deltaE(contrasting[i].lab, contrasting[j].lab) > 40 && texture > 4 && interleaved(contrasting[i].ci, contrasting[j].ci)) patterned = true;
 
   const toRgb = (lab: Lab) => labToRgb(lab);
   return {
