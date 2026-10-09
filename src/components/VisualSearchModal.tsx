@@ -10,6 +10,7 @@ import { Dialog } from './ui/Dialog';
 import { FabricImage } from './ui/FabricImage';
 import { GarmentIcon } from './ui/GarmentIcon';
 import { GarmentTypeKey } from '../types';
+import { StudioViewer } from './studio/StudioViewer';
 
 const EXAMPLES: { src: string; label: ReturnType<typeof L>; garment: GarmentTypeKey }[] = [
   { src: 'images/examples/emerald-slip.jpg', label: L('Zumrad slip ko‘ylak', 'Изумрудное платье-комбинация', 'Emerald slip dress'), garment: 'slip_dress' },
@@ -21,11 +22,18 @@ const EXAMPLES: { src: string; label: ReturnType<typeof L>; garment: GarmentType
 type State = { phase: 'pick' } | { phase: 'analyzing'; src: string } | { phase: 'result'; src: string; analysis: Analysis } | { phase: 'error'; src?: string };
 
 export function VisualSearchModal() {
-  const { t, lang, currency, unit, overlay, close, fabrics, hasSample, toggleSample } = useApp();
+  const { t, lang, currency, unit, overlay, close, fabrics, hasSample, toggleSample, measurements } = useApp();
   const [state, setState] = useState<State>({ phase: 'pick' });
   const [colorIdx, setColorIdx] = useState(0);
   const [garment, setGarment] = useState<GarmentTypeKey | null>(null);
   const [dragging, setDragging] = useState(false);
+  /** Garment the example photo shows; used for the 3D mannequin when the user picks none. */
+  const [photoGarment, setPhotoGarment] = useState<GarmentTypeKey | null>(null);
+  /** Match shown on the 3D mannequin: hovering a result previews it, tapping keeps it. */
+  const [active, setActive] = useState<string | null>(null);
+  const [showPhoto, setShowPhoto] = useState(false);
+  const hoverTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
   const fileRef = useRef<HTMLInputElement>(null);
   const camRef = useRef<HTMLInputElement>(null);
   const isOpen = overlay === 'search';
@@ -34,6 +42,9 @@ export function VisualSearchModal() {
     setState({ phase: 'analyzing', src });
     setColorIdx(0);
     setGarment(g);
+    setPhotoGarment(g);
+    setActive(null);
+    setShowPhoto(false);
     try {
       const [analysis] = await Promise.all([analyzePhoto(src), new Promise((r) => setTimeout(r, 450))]);
       if (!analysis.palette.length) throw new Error('empty');
@@ -74,6 +85,23 @@ export function VisualSearchModal() {
     const target = state.analysis.palette[colorIdx] ?? state.analysis.palette[0];
     return rankFabrics(fabrics, target, state.analysis, garment ? GARMENTS.find((g) => g.typeKey === garment) : undefined);
   }, [state, colorIdx, garment, fabrics]);
+
+  const keyOf = (m: { fabric: { id: string }; color: { id: string } }) => `${m.fabric.id}-${m.color.id}`;
+  const shown = matches.find((m) => keyOf(m) === active) ?? matches[0];
+  const outfit = useMemo(
+    () => (shown ? { fabric: shown.fabric, color: shown.color, garment: garment ?? photoGarment ?? shown.fabric.bestFor[0] ?? 'slip_dress' } : null),
+    [shown, garment, photoGarment],
+  );
+  const pick = (key: string, delay = 0) => {
+    window.clearTimeout(hoverTimer.current);
+    const go = () => {
+      setActive(key);
+      setShowPhoto(false);
+    };
+    // a short delay so sweeping the mouse across the list doesn't rebuild every garment on the way
+    if (delay) hoverTimer.current = window.setTimeout(go, delay);
+    else go();
+  };
 
   const surfaceLabel = (a: Analysis) =>
     a.surface === 'patterned'
@@ -154,12 +182,48 @@ export function VisualSearchModal() {
       )}
 
       {state.phase === 'result' && (
-        <div className="grid gap-6 px-5 py-6 sm:px-8 lg:grid-cols-[240px_1fr] lg:gap-8">
-          <div className="flex items-end gap-4 lg:block">
-            <div className="aspect-[3/4] w-24 shrink-0 overflow-hidden rounded-[6px] bg-well lg:w-auto">
-              <img src={state.src} alt={t(L('Siz yuklagan rasm', 'Ваше фото', 'Your photo'))} className="h-full w-full object-cover" />
+        <div className="grid gap-6 px-5 py-6 sm:px-8 lg:grid-cols-[280px_1fr] lg:gap-8">
+          {/* stays in view while the results scroll, so a tap on a fabric is visible on the mannequin (phones too) */}
+          <div className="sticky top-0 z-10 -mx-5 bg-paper px-5 pb-3 sm:-mx-8 sm:px-8 lg:mx-0 lg:self-start lg:px-0 lg:pb-0">
+            {/* 3D mannequin wearing the hovered / tapped fabric; the uploaded photo sits in the corner */}
+            <div className="relative mx-auto h-[34dvh] w-full max-w-[320px] overflow-hidden rounded-[6px] bg-well lg:aspect-[3/4] lg:h-auto" style={{ background: 'radial-gradient(ellipse at 50% 38%, #ffffff 0%, #f3f2ee 55%, #e7e5df 100%)' }}>
+              {outfit && !showPhoto ? (
+                <StudioViewer
+                  outfit={outfit}
+                  measurements={measurements}
+                  lighting="daylight"
+                  backdrop="light"
+                  autoRotate={false}
+                  wind={false}
+                  fallback={<img src={state.src} alt="" className="absolute inset-0 h-full w-full object-cover" />}
+                />
+              ) : (
+                <img src={state.src} alt={t(L('Siz yuklagan rasm', 'Ваше фото', 'Your photo'))} className="absolute inset-0 h-full w-full object-cover" />
+              )}
+              {outfit && (
+                <button
+                  type="button"
+                  onClick={() => setShowPhoto(!showPhoto)}
+                  className="absolute bottom-2 right-2 h-20 w-[60px] overflow-hidden rounded-[4px] bg-well shadow-md ring-2 ring-white"
+                  aria-label={showPhoto ? t(L('3D modelni ko‘rsatish', 'Показать 3D-модель', 'Show 3D model')) : t(L('Siz yuklagan rasmni ko‘rsatish', 'Показать ваше фото', 'Show your photo'))}
+                >
+                  {showPhoto ? (
+                    <span className="flex h-full w-full items-center justify-center text-[13px] font-medium">3D</span>
+                  ) : (
+                    <img src={state.src} alt="" className="h-full w-full object-cover" />
+                  )}
+                </button>
+              )}
+              {shown && !showPhoto && (
+                <div className="pointer-events-none absolute inset-x-2 top-2 truncate rounded-full bg-paper/90 px-3 py-1 text-center text-[12px] text-graphite">
+                  {t(shown.fabric.name)}, {t(shown.color.name)}
+                </div>
+              )}
             </div>
-            <button type="button" className="btn btn-secondary btn-sm lg:mt-3 lg:w-full" onClick={() => setState({ phase: 'pick' })}>
+            <p className="mx-auto mt-2 hidden max-w-[320px] text-center text-[12px] text-muted lg:block">
+              {t(L('Matoni ko‘rish uchun ustiga olib boring yoki bosing', 'Наведите или нажмите на ткань, чтобы примерить', 'Hover or tap a fabric to try it on'))}
+            </p>
+            <button type="button" className="btn btn-secondary btn-sm mx-auto mt-2 flex w-full max-w-[320px] lg:mt-3" onClick={() => setState({ phase: 'pick' })}>
               {t(L('Boshqa rasm', 'Другое фото', 'Another photo'))}
             </button>
           </div>
@@ -192,8 +256,19 @@ export function VisualSearchModal() {
             <ul className="mt-3 grid gap-3 sm:grid-cols-2">
               {matches.map((m) => {
                 const sampled = hasSample(m.fabric.id, m.color.id);
+                const key = keyOf(m);
+                const on = shown && keyOf(shown) === key && !showPhoto;
                 return (
-                  <li key={`${m.fabric.id}-${m.color.id}`} className="flex gap-3 rounded-xl border border-line p-3">
+                  <li
+                    key={key}
+                    onPointerEnter={(e) => e.pointerType === 'mouse' && pick(key, 90)}
+                    onPointerLeave={(e) => e.pointerType === 'mouse' && window.clearTimeout(hoverTimer.current)}
+                    onClick={(e) => {
+                      // tapping the card (not its links or buttons) puts the fabric on the mannequin
+                      if (!(e.target as HTMLElement).closest('a,button')) pick(key);
+                    }}
+                    className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition-colors ${on ? 'border-ink bg-mist' : 'border-line hover:border-ink'}`}
+                  >
                     <a href={href('fabric', { id: m.fabric.id, query: { color: m.color.id } })} onClick={onClose} className="h-24 w-20 shrink-0 overflow-hidden rounded-[4px] bg-well">
                       <FabricImage fabric={m.fabric} color={m.color} alt="" />
                     </a>
