@@ -24,11 +24,19 @@ const EXAMPLES: { src: string; label: ReturnType<typeof L>; garment: GarmentType
   //   white-tee-grey-jeans Sarah Dorweiler   https://unsplash.com/photos/gUPiTDBdRe4
   //   black-sport-look     Sincerely Media   https://unsplash.com/photos/-swiLhAa0M8
   //   red-stripe-denim     Junko Nakase      https://unsplash.com/photos/Q-72wa9-7Dg
+  //   grey-suit-wide-trousers     Shyngyskhan Tatubayev https://unsplash.com/photos/RR4RmQ-3cp0
+  //   black-blazer-beige-trousers Peter Chirkov         https://unsplash.com/photos/4dC8ob5qrNE
+  //   white-shirt-black-trousers  Ramo Roso             https://unsplash.com/photos/9E7s5oyDmxg
+  //   brown-top-black-trousers    Anton K Wibowo        https://unsplash.com/photos/uPJi1jMB9FY
   { src: 'images/examples/olive-belted-dress.jpg', label: L('Zaytun rang belbog‘li ko‘ylak', 'Оливковое платье с поясом', 'Olive belted dress'), garment: 'pleated_dress' },
   { src: 'images/examples/oat-cardigan-jeans.jpg', label: L('Suli rang kardigan va jinsi', 'Овсяный кардиган и джинсы', 'Oat cardigan and jeans'), garment: 'kimono' },
   { src: 'images/examples/white-tee-grey-jeans.jpg', label: L('Oq futbolka va kulrang jinsi', 'Белая футболка и серые джинсы', 'White tee and grey jeans'), garment: 'shirt' },
   { src: 'images/examples/black-sport-look.jpg', label: L('Qora sport obraz', 'Чёрный спортивный образ', 'Black sporty look'), garment: 'jumpsuit' },
   { src: 'images/examples/red-stripe-denim.jpg', label: L('Qizil yo‘l-yo‘l va jinsi', 'Красная полоска и деним', 'Red stripes and denim'), garment: 'shirt' },
+  { src: 'images/examples/grey-suit-wide-trousers.jpg', label: L('Kulrang kostyum, keng shim', 'Серый костюм с широкими брюками', 'Grey suit, wide trousers'), garment: 'blazer' },
+  { src: 'images/examples/black-blazer-beige-trousers.jpg', label: L('Qora jaket va bej shim', 'Чёрный жакет и бежевые брюки', 'Black blazer, beige trousers'), garment: 'blazer' },
+  { src: 'images/examples/white-shirt-black-trousers.jpg', label: L('Oq rubashka va qora keng shim', 'Белая рубашка и чёрные широкие брюки', 'White shirt, black wide trousers'), garment: 'shirt' },
+  { src: 'images/examples/brown-top-black-trousers.jpg', label: L('Jigarrang kofta va qora shim', 'Коричневый топ и чёрные брюки', 'Brown top, black trousers'), garment: 'jumpsuit' },
 ];
 
 type State = { phase: 'pick' } | { phase: 'analyzing'; src: string } | { phase: 'result'; src: string; analysis: Analysis } | { phase: 'error'; src?: string };
@@ -160,7 +168,7 @@ export function VisualSearchModal() {
           </div>
           <div className="mt-8">
             <p className="label">{t(L('Yoki namunani sinab ko‘ring', 'Или попробуйте на примере', 'Or try an example'))}</p>
-            <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
               {EXAMPLES.map((ex) => (
                 <button key={ex.src} type="button" onClick={() => run(asset(ex.src), ex.garment)} className="group text-left">
                   <span className="block aspect-[3/4] overflow-hidden rounded-[6px] bg-well">

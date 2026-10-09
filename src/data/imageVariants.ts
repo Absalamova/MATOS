@@ -2,14 +2,18 @@
 /** Bundled photos (path -> original width) that have WebP copies at full size, 480px and 160px wide. */
 export const IMAGE_VARIANTS: ReadonlyMap<string, number> = new Map<string, number>([
   ['images/examples/adras-kimono.jpg', 600],
+  ['images/examples/black-blazer-beige-trousers.jpg', 600],
   ['images/examples/black-sport-look.jpg', 600],
   ['images/examples/blush-pleated.jpg', 600],
+  ['images/examples/brown-top-black-trousers.jpg', 600],
   ['images/examples/emerald-slip.jpg', 600],
+  ['images/examples/grey-suit-wide-trousers.jpg', 600],
   ['images/examples/khaki-trench.jpg', 600],
   ['images/examples/navy-shirt-jeans.jpg', 314],
   ['images/examples/oat-cardigan-jeans.jpg', 600],
   ['images/examples/olive-belted-dress.jpg', 600],
   ['images/examples/red-stripe-denim.jpg', 600],
+  ['images/examples/white-shirt-black-trousers.jpg', 600],
   ['images/examples/white-tee-grey-jeans.jpg', 600],
   ['images/fabrics/bold-gingham-linen-navy/hang.jpg', 900],
   ['images/fabrics/bold-gingham-linen-navy/roll.jpg', 900],
