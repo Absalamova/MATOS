@@ -249,9 +249,9 @@ export function StudioPage({ route }: { route: Route }) {
         <button type="button" className="btn btn-primary" onClick={() => addToCart(fabric.id, color.id, need.meters, garment.typeKey)}>
           {t(UI.addToBag)}
         </button>
-        <button type="button" className={`btn ${sampled ? 'btn-tape' : 'btn-secondary'} px-4`} aria-pressed={sampled} onClick={() => toggleSample(fabric.id, color.id)}>
+        <button type="button" className={`btn ${sampled ? 'btn-tape' : 'btn-secondary'} gap-1 px-3 sm:px-4`} aria-pressed={sampled} onClick={() => toggleSample(fabric.id, color.id)}>
           {sampled ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-          <span className="hidden sm:inline">{t(L('Namuna', 'Образец', 'Sample'))}</span>
+          <span>{t(L('Namuna', 'Образец', 'Sample'))}</span>
         </button>
         {/* On phones the tailor link shares the row so the sticky bar leaves room for the mannequin. */}
         <a className="btn btn-secondary px-4 md:hidden" href={tailorLink} aria-label={t(L('Tikuvchiga buyurtma berish', 'Заказать пошив', 'Order from a tailor'))}>

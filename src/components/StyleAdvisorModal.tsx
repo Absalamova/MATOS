@@ -7,6 +7,7 @@ import { href } from '../lib/router';
 import { DEFAULT_MEASUREMENTS, MEASURE_LIMITS } from '../lib/measure';
 import {
   analyzePortrait,
+  SEASON_GUIDE,
   BodyShape,
   CONTRAST_LABEL,
   Issue,
@@ -214,95 +215,119 @@ export function StyleAdvisorModal() {
     const src = photos[slot];
     const face = slot === 'face';
     return (
-      <div
-        className="flex flex-col rounded-2xl border-2 border-dashed border-line p-4"
+      <li
+        className={`rounded-2xl border p-3.5 transition-colors sm:p-4 ${src ? 'border-ink/25 bg-mist/60' : 'border-line bg-paper'}`}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => { e.preventDefault(); readFile(e.dataTransfer.files?.[0], slot); }}
       >
-        <div className="flex items-start gap-4">
-          <div className="flex aspect-[3/4] w-24 shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-well">
-            {src ? (
-              <img src={src} alt="" className="h-full w-full object-cover" />
-            ) : face ? (
-              <ScanFace className="h-9 w-9 text-graphite" strokeWidth={1.2} />
-            ) : (
-              <PersonStanding className="h-10 w-10 text-graphite" strokeWidth={1.2} />
-            )}
-          </div>
-          <div className="min-w-0">
-            <p className="font-medium">
-              {face ? t(L('Yuz rasmi', 'Фото лица', 'Face photo')) : t(L('To‘liq bo‘y rasmi', 'Фото в полный рост', 'Full-length photo'))}
-              <span className="ml-1.5 text-[12.5px] font-normal text-graphite">
-                {face ? t(L('— ranglar uchun', '— для цветов', '— for colours')) : t(L('— fasonlar uchun, ixtiyoriy', '— для фасонов, по желанию', '— for styles, optional'))}
-              </span>
-            </p>
-            <p className="mt-1 text-[13px] text-graphite">
-              {face
-                ? t(L('Yuzingiz yaqindan, kunduzgi yorug‘likda, filtr va makiyajsiz. Sochingiz ko‘rinsa yaxshi.', 'Лицо крупно, при дневном свете, без фильтров и макияжа. Хорошо, если видны волосы.', 'A close-up in daylight, no filters or make-up. Better if your hair shows.'))
-                : t(L('Boshdan oyoqqacha, oddiy devor oldida, qo‘llar biroz yonga ochiq.', 'С головы до ног, у ровной стены, руки чуть в стороны.', 'Head to toe, against a plain wall, arms slightly out.'))}
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button type="button" className={`btn btn-sm ${face && !src ? 'btn-primary' : 'btn-secondary'}`} onClick={() => openCamera(slot)} data-autofocus={face ? true : undefined}>
-                <Camera className="h-4 w-4" />
-                {src ? t(L('Qayta olish', 'Переснять', 'Retake')) : t(L('Suratga olish', 'Сфотографировать', 'Take photo'))}
-              </button>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => upload(slot)}>
-                <ImageUp className="h-4 w-4" />
-                {t(L('Yuklash', 'Загрузить', 'Upload'))}
-              </button>
-              {src && (
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPhoto(slot, null)} aria-label={t(UI.remove)}>
-                  <X className="h-4 w-4" />
-                </button>
+        <div className="flex gap-3.5">
+          <div className="relative w-[84px] shrink-0">
+            <div className="flex aspect-[3/4] items-center justify-center overflow-hidden rounded-xl bg-well">
+              {src ? (
+                <img src={src} alt={face ? t(L('Yuz rasmingiz', 'Ваше фото лица', 'Your face photo')) : t(L('Bo‘y rasmingiz', 'Ваше фото в рост', 'Your full-length photo'))} className="h-full w-full object-cover" />
+              ) : face ? (
+                <ScanFace className="h-9 w-9 text-graphite" strokeWidth={1.2} />
+              ) : (
+                <PersonStanding className="h-10 w-10 text-graphite" strokeWidth={1.2} />
               )}
             </div>
+            {src && (
+              <>
+                <span className="absolute -left-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-ok text-white ring-2 ring-paper" aria-hidden="true">
+                  <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
+                </span>
+                {/* the visible dot is small, the hit area is a full 44px */}
+                <button
+                  type="button"
+                  className="absolute -right-3 -top-3 flex h-11 w-11 items-center justify-center"
+                  onClick={() => setPhoto(slot, null)}
+                  aria-label={`${t(UI.remove)}: ${face ? t(L('yuz rasmi', 'фото лица', 'face photo')) : t(L('bo‘y rasmi', 'фото в рост', 'full-length photo'))}`}
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-ink text-white ring-2 ring-paper">
+                    <X className="h-4 w-4" />
+                  </span>
+                </button>
+              </>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="tabular flex h-5 w-5 items-center justify-center rounded-full bg-ink text-[11px] text-white" aria-hidden="true">{face ? 1 : 2}</span>
+              <p className="font-medium">{face ? t(L('Yuz rasmi', 'Фото лица', 'Face photo')) : t(L('To‘liq bo‘y rasmi', 'Фото в полный рост', 'Full-length photo'))}</p>
+              <span className={`rounded-full px-2 py-0.5 text-[11.5px] ${face ? 'bg-tape-soft text-ink' : 'bg-well text-graphite'}`}>
+                {face ? t(L('ranglar uchun', 'для цветов', 'for colours')) : t(L('fason uchun · ixtiyoriy', 'для фасонов · по желанию', 'for styles · optional'))}
+              </span>
+            </div>
+            <p className="mt-1.5 text-[13px] leading-snug text-graphite">
+              {src
+                ? t(L('Rasm qo‘shildi. Kerak bo‘lsa, qayta oling.', 'Фото добавлено. Если нужно, переснимите.', 'Photo added. Retake it if you like.'))
+                : face
+                  ? t(L('Yaqindan, kunduzgi yorug‘da, filtr va makiyajsiz. Soch ko‘rinsa yaxshi.', 'Крупно, при дневном свете, без фильтров и макияжа. Хорошо, если видны волосы.', 'Close-up, in daylight, no filters or make-up. Better if your hair shows.'))
+                  : t(L('Boshdan oyoqqacha, oddiy devor oldida, qo‘llar biroz ochiq.', 'С головы до ног, у ровной стены, руки чуть в стороны.', 'Head to toe, against a plain wall, arms slightly out.'))}
+            </p>
           </div>
         </div>
-      </div>
+        <div className="mt-3.5 grid grid-cols-2 gap-2">
+          <button type="button" className={`btn w-full px-3 ${face && !src ? 'btn-primary' : 'btn-secondary'}`} onClick={() => openCamera(slot)} data-autofocus={face ? true : undefined}>
+            <Camera className="h-[18px] w-[18px] shrink-0" />
+            <span className="truncate">{src ? t(L('Qayta olish', 'Переснять', 'Retake')) : t(L('Suratga olish', 'Снять', 'Take photo'))}</span>
+          </button>
+          <button type="button" className="btn btn-secondary w-full px-3" onClick={() => upload(slot)}>
+            <ImageUp className="h-[18px] w-[18px] shrink-0" />
+            <span className="truncate">{t(L('Galereyadan', 'Из галереи', 'From gallery'))}</span>
+          </button>
+        </div>
+      </li>
     );
   };
 
+  const hasPhoto = !!(photos.face || photos.body);
+  const pickFooter =
+    state.phase === 'pick' ? (
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-4">
+        <button type="button" className="btn btn-primary h-[52px] w-full text-[15.5px] sm:h-[46px] sm:w-auto sm:text-[14.5px]" disabled={!hasPhoto} onClick={analyze}>
+          <Sparkles className="h-[18px] w-[18px]" />
+          {t(L('Menga mosini ko‘rsat', 'Показать, что мне идёт', 'Show what suits me'))}
+        </button>
+        <p className="text-center text-[12.5px] text-muted sm:text-left" aria-live="polite">
+          {hasPhoto
+            ? photos.face && photos.body
+              ? t(L('Ikkala rasm tayyor.', 'Оба фото готовы.', 'Both photos are ready.'))
+              : photos.face
+              ? t(L('Tayyor. Bo‘y rasmini qo‘shish shart emas.', 'Готово. Фото в рост добавлять не обязательно.', 'Ready. A full-length photo is optional.'))
+              : t(L('Ranglarni aniqlash uchun yuz rasmini ham qo‘shing.', 'Чтобы определить цвета, добавьте и фото лица.', 'Add a face photo too, to read your colours.'))
+            : t(L('Avval kamida bitta rasm qo‘shing', 'Сначала добавьте хотя бы одно фото', 'Add at least one photo first'))}
+        </p>
+      </div>
+    ) : undefined;
+
   return (
-    <Dialog open={isOpen} onClose={onClose} title={t(L('Sizga mos uslub va ranglar', 'Ваш стиль и цвета', 'Your styles and colours'))} size="xl" closeLabel={t(UI.close)}>
+    <Dialog open={isOpen} onClose={onClose} title={t(L('Sizga mos uslub va ranglar', 'Ваш стиль и цвета', 'Your styles and colours'))} size="xl" closeLabel={t(UI.close)} footer={pickFooter}>
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { readFile(e.target.files?.[0], slotRef.current); e.target.value = ''; }} />
       <input ref={camInputRef} type="file" accept="image/*" capture="user" className="hidden" onChange={(e) => { readFile(e.target.files?.[0], slotRef.current); e.target.value = ''; }} />
 
       {state.phase === 'pick' && (
-        <div className="px-5 py-6 sm:px-8 sm:py-8">
-          <p className="max-w-[66ch] text-graphite">
+        <div className="px-4 py-5 sm:px-8 sm:py-7">
+          <p className="max-w-[66ch] text-[14.5px] leading-relaxed text-graphite">
             {t(L(
-              'Yuzingiz rasmidan teri va soch rangingizga mos ranglarni, to‘liq bo‘y rasmidan esa qomatingizga mos fasonlarni tanlaymiz. Bittasi ham yetarli.',
-              'По фото лица подберём цвета под тон кожи и волос, по фото в полный рост — фасоны под фигуру. Достаточно и одного фото.',
-              'From a face photo we pick colours for your skin and hair; from a full-length photo, styles for your figure. Either one is enough.',
-            ))}{' '}
-            {t(L(
-              'Faqat yuzingizni suratga olsangiz ham bo‘ladi — qomat uchun o‘lchamlaringizni keyin kiritasiz.',
-              'Можно сфотографировать только лицо — мерки для фигуры введёте потом.',
-              'A face-only photo is fine too — you can add your measurements for the figure afterwards.',
+              'Yuz rasmidan teri va sochingizga mos ranglarni, bo‘y rasmidan qomatingizga mos fasonlarni tanlaymiz. Bitta yuz rasmi ham yetarli.',
+              'По фото лица подберём цвета под кожу и волосы, по фото в рост — фасоны под фигуру. Достаточно одного фото лица.',
+              'A face photo gives colours for your skin and hair; a full-length photo gives styles for your figure. One face photo is enough.',
             ))}
           </p>
-          <p className="mt-3 flex items-start gap-2 text-[13.5px] text-graphite">
-            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.7} />
+          <p className="mt-2.5 flex items-start gap-2 text-[13px] text-graphite">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-ok" strokeWidth={1.8} />
             {t(L(
               'Rasmlar hech qayerga yuborilmaydi va saqlanmaydi — tahlil faqat shu qurilmada bajariladi.',
               'Фото никуда не отправляются и не сохраняются — анализ идёт только на этом устройстве.',
               'Your photos are never sent or stored — the analysis runs only on this device.',
             ))}
           </p>
-          <div className="mt-6 grid gap-3 md:grid-cols-2">
+          <ol className="mt-5 grid gap-3 md:grid-cols-2">
             {slotCard('face')}
             {slotCard('body')}
-          </div>
-          {badFile && <p className="mt-3 text-[13.5px] text-danger">{t(L('25 MB gacha JPG, PNG yoki WEBP rasm tanlang.', 'Выберите JPG, PNG или WEBP до 25 МБ.', 'Choose a JPG, PNG or WEBP up to 25 MB.'))}</p>}
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <button type="button" className="btn btn-primary" disabled={!photos.face && !photos.body} onClick={analyze}>
-              <Sparkles className="h-4 w-4" />
-              {t(L('Menga mosini ko‘rsat', 'Показать, что мне идёт', 'Show what suits me'))}
-            </button>
-            {!photos.face && !photos.body && (
-              <span className="text-[13px] text-muted">{t(L('Avval kamida bitta rasm qo‘shing', 'Сначала добавьте хотя бы одно фото', 'Add at least one photo first'))}</span>
-            )}
-          </div>
+          </ol>
+          {badFile && <p className="mt-3 text-[13.5px] text-danger" role="alert">{t(L('25 MB gacha JPG, PNG yoki WEBP rasm tanlang.', 'Выберите JPG, PNG или WEBP до 25 МБ.', 'Choose a JPG, PNG or WEBP up to 25 MB.'))}</p>}
         </div>
       )}
 
@@ -326,14 +351,14 @@ export function StyleAdvisorModal() {
         <div className="flex flex-col items-center px-6 py-14 text-center" role="status">
           <div className="flex gap-3">
             {[photos.face, photos.body].filter(Boolean).map((src) => (
-              <div key={src} className="relative h-64 w-48 overflow-hidden rounded-[6px] bg-well">
+              <div key={src} className="relative aspect-[3/4] w-[min(42vw,192px)] overflow-hidden rounded-[6px] bg-well">
                 <img src={src!} alt="" className="h-full w-full object-cover" />
-                <div className="absolute inset-x-0 top-0 h-1 animate-[scan_1.1s_ease-in-out_infinite] bg-tape" />
+                <div className="absolute inset-x-0 top-0 h-1 animate-[scan_1.1s_ease-in-out_infinite] bg-tape motion-reduce:animate-none" />
               </div>
             ))}
           </div>
           <p className="mt-6 font-display text-[24px]">{t(L('Rang tipi va qomat aniqlanmoqda…', 'Определяем цветотип и фигуру…', 'Reading your colouring and figure…'))}</p>
-          <style>{'@keyframes scan{0%{transform:translateY(0)}50%{transform:translateY(252px)}100%{transform:translateY(0)}}'}</style>
+          <style>{'@keyframes scan{0%{top:0}50%{top:calc(100% - 4px)}100%{top:0}}'}</style>
         </div>
       )}
 
@@ -390,63 +415,154 @@ export function StyleAdvisorModal() {
               <p key={m} className="mb-3 rounded-lg bg-tape-soft px-3 py-2 text-[13.5px]">{m}</p>
             ))}
 
-            {/* Colouring */}
-            <section aria-labelledby="sa-colors">
-              <p className="label" id="sa-colors">{t(L('Rang tipingiz', 'Ваш цветотип', 'Your colour type'))}</p>
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <h3 className="font-display text-[30px] leading-tight">{t(SEASONS[activeSeason].name)}</h3>
-                {coloring && (
-                  <span className="flex items-center gap-2 text-[13px] text-graphite">
-                    <span className="h-4 w-4 rounded-full ring-1 ring-black/10" style={{ background: coloring.skin }} title={t(L('Teri', 'Кожа', 'Skin'))} aria-hidden="true" />
-                    {coloring.hair && <span className="h-4 w-4 rounded-full ring-1 ring-black/10" style={{ background: coloring.hair }} title={t(L('Soch', 'Волосы', 'Hair'))} aria-hidden="true" />}
-                    {t(L(
-                      `Teri tusi: ${UNDERTONE_LABEL[coloring.undertone].uz.toLowerCase()}, ${DEPTH_LABEL[coloring.depth].uz.toLowerCase()} · kontrast ${CONTRAST_LABEL[coloring.contrast].uz}`,
-                      `Подтон: ${UNDERTONE_LABEL[coloring.undertone].ru.toLowerCase()}, кожа ${DEPTH_LABEL[coloring.depth].ru.toLowerCase()} · контраст ${CONTRAST_LABEL[coloring.contrast].ru}`,
-                      `Undertone: ${UNDERTONE_LABEL[coloring.undertone].en.toLowerCase()}, ${DEPTH_LABEL[coloring.depth].en.toLowerCase()} skin · ${CONTRAST_LABEL[coloring.contrast].en} contrast`,
-                    ))}
-                  </span>
-                )}
-              </div>
-              <p className="mt-1 max-w-[70ch] text-[14px] text-graphite">{t(SEASONS[activeSeason].about)}</p>
-              <div className="mt-3 flex flex-wrap gap-2" role="radiogroup" aria-label={t(L('Rang tipini o‘zgartirish', 'Сменить цветотип', 'Change colour type'))}>
-                {SEASON_KEYS.map((s) => (
-                  <button key={s} type="button" role="radio" aria-checked={activeSeason === s} aria-pressed={activeSeason === s} className="chip h-8" onClick={() => setSeason(s)}>
-                    {t(SEASONS[s].name)}
-                    {coloring && s === detectedSeason && <span className="text-[11px] opacity-70">· {t(L('aniqlandi', 'определено', 'detected'))}</span>}
-                  </button>
-                ))}
-              </div>
+            {/* Summary: on a phone the two answers are a long scroll apart, so show both up front */}
+            <div className="mb-6 grid grid-cols-2 gap-2.5">
+              <a href="#sa-colors" onClick={(e) => { e.preventDefault(); document.getElementById('sa-colors')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="rounded-xl border border-line p-3 transition-colors hover:border-ink">
+                <span className="block text-[12px] text-graphite">{t(L('Rang tipi', 'Цветотип', 'Colour type'))}</span>
+                <span className="mt-0.5 block font-display text-[22px] leading-tight">{t(SEASONS[activeSeason].name)}</span>
+                <span className="mt-1.5 flex gap-1" aria-hidden="true">
+                  {SEASONS[activeSeason].best.slice(0, 5).map((c) => (
+                    <span key={c.hex} className="h-3.5 w-3.5 rounded-full ring-1 ring-black/10" style={{ background: c.hex }} />
+                  ))}
+                </span>
+              </a>
+              <a href="#sa-shape" onClick={(e) => { e.preventDefault(); document.getElementById('sa-shape')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="rounded-xl border border-line p-3 transition-colors hover:border-ink">
+                <span className="block text-[12px] text-graphite">{t(L('Qomat', 'Фигура', 'Figure'))}</span>
+                <span className="mt-0.5 block font-display text-[22px] leading-tight">{t(SHAPES[activeShape].name)}</span>
+                <span className="mt-1.5 block text-[12px] text-graphite">{t(L(`${styles.good.length} ta mos fason`, `${styles.good.length} подходящих фасона`, `${styles.good.length} styles for you`))}</span>
+              </a>
+            </div>
 
-              <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_auto]">
-                <div>
-                  <p className="text-[13px] font-medium">{t(L('Sizga mos ranglar', 'Ваши цвета', 'Colours that suit you'))}</p>
-                  <ul className="mt-2 flex flex-wrap gap-2">
-                    {SEASONS[activeSeason].best.map((s) => (
-                      <li key={s.hex} className="flex flex-col items-center gap-1 text-center text-[11.5px] text-graphite" style={{ width: 62 }}>
-                        <span className="h-10 w-10 rounded-full ring-1 ring-black/10" style={{ background: s.hex }} aria-hidden="true" />
-                        {t(s.name)}
-                      </li>
-                    ))}
+            {/* Colouring */}
+            <section aria-labelledby="sa-colors" className="scroll-mt-4">
+              <p className="label" id="sa-colors">{t(L('Rang tipingiz', 'Ваш цветотип', 'Your colour type'))}</p>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <h3 className="font-display text-[32px] leading-tight">{t(SEASONS[activeSeason].name)}</h3>
+                <span className={`rounded-full px-2.5 py-1 text-[12px] ${season ? 'bg-well text-graphite' : coloring ? 'bg-ok/10 text-ok' : 'bg-tape-soft text-ink'}`}>
+                  {season
+                    ? t(L('o‘zingiz tanladingiz', 'выбрано вами', 'your choice'))
+                    : coloring
+                      ? t(L('rasmingizdan aniqlandi', 'определено по фото', 'read from your photo'))
+                      : t(L('taxminiy — yuz rasmi yo‘q', 'примерно — нет фото лица', 'a guess — no face photo'))}
+                </span>
+              </div>
+              <p className="mt-1 text-[14px] font-medium">{t(SEASON_GUIDE[activeSeason].tag)}</p>
+
+              {/* What the season name means: people read “Kuz” as the time of year */}
+              <p className="mt-3 rounded-xl bg-mist px-3.5 py-3 text-[14px] leading-relaxed">
+                {t(L(
+                  `“${SEASONS[activeSeason].name.uz}” — bu yil fasli emas. Bu nom sizga ${SEASON_GUIDE[activeSeason].image.uz} yarashishini bildiradi.`,
+                  `«${SEASONS[activeSeason].name.ru}» — это не время года. Название значит, что вам идут ${SEASON_GUIDE[activeSeason].image.ru}.`,
+                  `“${SEASONS[activeSeason].name.en}” isn’t the time of year. It means ${SEASON_GUIDE[activeSeason].image.en} suit you.`,
+                ))}{' '}
+                <span className="text-graphite">{t(SEASONS[activeSeason].about)}</span>
+              </p>
+
+              <dl className="mt-4 space-y-3">
+                <TraitScale label={t(L('Tus', 'Подтон', 'Undertone'))} from={t(L('Iliq', 'Тёплый', 'Warm'))} to={t(L('Sovuq', 'Холодный', 'Cool'))} value={SEASON_GUIDE[activeSeason].temperature} />
+                <TraitScale label={t(L('Ochlik', 'Глубина', 'Depth'))} from={t(L('Och', 'Светлый', 'Light'))} to={t(L('To‘q', 'Тёмный', 'Deep'))} value={SEASON_GUIDE[activeSeason].depth} />
+                <TraitScale label={t(L('Yorqinlik', 'Яркость', 'Clarity'))} from={t(L('Yumshoq', 'Мягкий', 'Soft'))} to={t(L('Yorqin', 'Яркий', 'Clear'))} value={SEASON_GUIDE[activeSeason].clarity} />
+              </dl>
+
+              {coloring && (
+                <div className="mt-4">
+                  <p className="text-[13px] font-medium">{t(L('Rasmingizda nimani ko‘rdik', 'Что мы увидели на фото', 'What we saw in your photo'))}</p>
+                  <ul className="mt-2 grid grid-cols-3 gap-2 text-[12.5px]">
+                    <li className="rounded-lg border border-line p-2.5">
+                      <span className="flex items-center gap-1.5 text-graphite">
+                        <span className="h-3.5 w-3.5 shrink-0 rounded-full ring-1 ring-black/10" style={{ background: coloring.skin }} aria-hidden="true" />
+                        {t(L('Teri tusi', 'Подтон', 'Undertone'))}
+                      </span>
+                      <span className="mt-0.5 block font-medium">{t(UNDERTONE_LABEL[coloring.undertone])}</span>
+                    </li>
+                    <li className="rounded-lg border border-line p-2.5">
+                      <span className="block text-graphite">{t(L('Teri', 'Кожа', 'Skin'))}</span>
+                      <span className="mt-0.5 block font-medium">{t(DEPTH_LABEL[coloring.depth])}</span>
+                    </li>
+                    <li className="rounded-lg border border-line p-2.5">
+                      <span className="flex items-center gap-1.5 text-graphite">
+                        {coloring.hair && <span className="h-3.5 w-3.5 shrink-0 rounded-full ring-1 ring-black/10" style={{ background: coloring.hair }} aria-hidden="true" />}
+                        {t(L('Kontrast', 'Контраст', 'Contrast'))}
+                      </span>
+                      <span className="mt-0.5 block font-medium first-letter:uppercase">{t(CONTRAST_LABEL[coloring.contrast])}</span>
+                    </li>
                   </ul>
                 </div>
-                <div>
-                  <p className="text-[13px] font-medium">{t(L('Ehtiyot bo‘ling', 'Осторожно', 'Go easy on'))}</p>
-                  <ul className="mt-2 flex flex-wrap gap-2">
-                    {SEASONS[activeSeason].avoid.map((s) => (
-                      <li key={s.hex} className="flex flex-col items-center gap-1 text-center text-[11.5px] text-graphite" style={{ width: 62 }}>
-                        <span className="relative h-10 w-10 overflow-hidden rounded-full ring-1 ring-black/10" style={{ background: s.hex }} aria-hidden="true">
-                          <span className="absolute left-1/2 top-[-2px] h-[44px] w-[1.5px] -translate-x-1/2 rotate-45 bg-white/90 mix-blend-difference" />
+              )}
+
+              <div className="mt-5">
+                <p className="text-[13px] font-medium">{t(L('Sizga mos ranglar', 'Ваши цвета', 'Colours that suit you'))}</p>
+                <ul className="mt-2 grid grid-cols-4 gap-x-2 gap-y-3 sm:flex sm:flex-wrap">
+                  {SEASONS[activeSeason].best.map((s) => (
+                    <li key={s.hex} className="flex flex-col items-center gap-1 text-center text-[11.5px] leading-tight text-graphite sm:w-[64px]">
+                      <span className="h-11 w-11 rounded-full ring-1 ring-black/10" style={{ background: s.hex }} aria-hidden="true" />
+                      {t(s.name)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="mt-4">
+                <p className="text-[13px] font-medium">{t(L('Yuzdan uzoqroq kiying', 'Носите подальше от лица', 'Keep away from your face'))}</p>
+                <ul className="mt-2 grid grid-cols-4 gap-x-2 gap-y-3 sm:flex sm:flex-wrap">
+                  {SEASONS[activeSeason].avoid.map((s) => (
+                    <li key={s.hex} className="flex flex-col items-center gap-1 text-center text-[11.5px] leading-tight text-graphite sm:w-[64px]">
+                      <span className="relative h-11 w-11 overflow-hidden rounded-full ring-1 ring-black/10" style={{ background: s.hex }} aria-hidden="true">
+                        <span className="absolute left-1/2 top-[-2px] h-[48px] w-[1.5px] -translate-x-1/2 rotate-45 bg-white/90 mix-blend-difference" />
+                      </span>
+                      {t(s.name)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <dl className="mt-5 grid gap-x-4 gap-y-2.5 rounded-xl border border-line p-3.5 text-[13.5px] sm:grid-cols-[auto_1fr]">
+                <dt className="text-graphite">{t(L('Zargarlik', 'Украшения', 'Jewellery'))}</dt>
+                <dd className="-mt-2 sm:mt-0">{t(SEASON_GUIDE[activeSeason].metal)}</dd>
+                <dt className="text-graphite">{t(L('Asosiy ranglar', 'Базовые цвета', 'Base colours'))}</dt>
+                <dd className="-mt-2 sm:mt-0">{t(SEASON_GUIDE[activeSeason].neutrals)}</dd>
+                <dt className="text-graphite">{t(L('Maslahat', 'Совет', 'Tip'))}</dt>
+                <dd className="-mt-2 sm:mt-0">{t(SEASON_GUIDE[activeSeason].tip)}</dd>
+              </dl>
+
+              <div className="mt-6">
+                <p className="text-[13px] font-medium">{t(L('Boshqa rang tipini tanlash', 'Выбрать другой цветотип', 'Pick another colour type'))}</p>
+                <p className="mt-0.5 text-[12.5px] text-graphite">
+                  {t(L('Natija to‘g‘ri kelmasa, o‘zingizga yaqin tavsifni tanlang — tavsiyalar darhol yangilanadi.', 'Если результат не подходит, выберите близкое описание — советы обновятся сразу.', 'If it doesn’t feel right, pick the description closest to you — the advice updates at once.'))}
+                </p>
+                <div className="mt-2.5 grid grid-cols-2 gap-2" role="radiogroup" aria-label={t(L('Rang tipini o‘zgartirish', 'Сменить цветотип', 'Change colour type'))}>
+                  {SEASON_KEYS.map((s) => {
+                    const on = activeSeason === s;
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        onClick={() => setSeason(s === detectedSeason && coloring ? null : s)}
+                        className={`rounded-xl border p-3 text-left transition-colors ${on ? 'border-ink bg-ink text-white' : 'border-line hover:border-ink'}`}
+                      >
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="font-medium">{t(SEASONS[s].name)}</span>
+                          {coloring && s === detectedSeason && (
+                            <span className={`rounded-full px-1.5 text-[10.5px] ${on ? 'bg-white/20' : 'bg-well text-graphite'}`}>{t(L('rasmdan', 'по фото', 'photo'))}</span>
+                          )}
                         </span>
-                        {t(s.name)}
-                      </li>
-                    ))}
-                  </ul>
+                        <span className={`mt-0.5 block text-[11.5px] ${on ? 'text-white/75' : 'text-graphite'}`}>{t(SEASON_GUIDE[s].tag)}</span>
+                        <span className="mt-2 flex" aria-hidden="true">
+                          {SEASONS[s].best.slice(0, 6).map((c) => (
+                            <span key={c.hex} className="h-4 flex-1 first:rounded-l-full last:rounded-r-full" style={{ background: c.hex }} />
+                          ))}
+                        </span>
+                        <span className={`mt-2 block text-[11.5px] leading-snug ${on ? 'text-white/80' : 'text-graphite'}`}>{t(SEASON_GUIDE[s].looks)}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </section>
 
             {/* Figure */}
-            <section className="mt-8" aria-labelledby="sa-shape">
+            <section className="mt-10 scroll-mt-4" aria-labelledby="sa-shape">
               <p className="label" id="sa-shape">{t(L('Qomatingiz', 'Ваша фигура', 'Your figure'))}</p>
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <h3 className="font-display text-[30px] leading-tight">{t(SHAPES[activeShape].name)}</h3>
@@ -478,21 +594,21 @@ export function StyleAdvisorModal() {
                     role="radio"
                     aria-checked={activeShape === s}
                     aria-pressed={activeShape === s}
-                    className="chip h-8"
+                    className="chip"
                     onClick={() => { setShape(s); setShapeSource('manual'); }}
                   >
                     {t(SHAPES[s].name)}
                   </button>
                 ))}
               </div>
-              <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={applyMeasurements}>
+              <form className="mt-4 grid grid-cols-3 items-end gap-2.5 sm:flex sm:flex-wrap sm:gap-3" onSubmit={applyMeasurements}>
                 {(['bustCm', 'waistCm', 'hipsCm'] as const).map((k) => (
-                  <label key={k} className="w-[104px]">
+                  <label key={k} className="min-w-0 sm:w-[104px]">
                     <span className="label">
                       {t(k === 'bustCm' ? L('Ko‘krak, sm', 'Грудь, см', 'Bust, cm') : k === 'waistCm' ? L('Bel, sm', 'Талия, см', 'Waist, cm') : L('Son, sm', 'Бёдра, см', 'Hips, cm'))}
                     </span>
                     <input
-                      className="field h-10"
+                      className="field h-11"
                       inputMode="decimal"
                       type="number"
                       min={MEASURE_LIMITS[k][0]}
@@ -502,7 +618,7 @@ export function StyleAdvisorModal() {
                     />
                   </label>
                 ))}
-                <button type="submit" className="btn btn-secondary btn-sm h-10">{t(L('O‘lchamlarim bo‘yicha', 'По моим меркам', 'Use my measurements'))}</button>
+                <button type="submit" className="btn btn-secondary btn-sm col-span-3 h-11 sm:col-span-1">{t(L('O‘lchamlarim bo‘yicha', 'По моим меркам', 'Use my measurements'))}</button>
               </form>
             </section>
 
@@ -528,14 +644,14 @@ export function StyleAdvisorModal() {
                       )}
                       <div className="mt-auto flex gap-1.5 pt-2">
                         <a
-                          className="btn btn-primary btn-sm h-8 px-3 text-[12.5px]"
+                          className="btn btn-primary btn-sm px-3.5 text-[13px]"
                           href={href('studio', { query: { garment: r.garment.typeKey, fabric: r.fabric?.id, color: r.color?.id } })}
                           onClick={onClose}
                         >
                           {t(UI.tryOn3D)}
                         </a>
                         {r.fabric && (
-                          <a className="btn btn-secondary btn-sm h-8 px-3 text-[12.5px]" href={href('fabric', { id: r.fabric.id, query: { color: r.color?.id } })} onClick={onClose}>
+                          <a className="btn btn-secondary btn-sm px-3 text-[13px]" href={href('fabric', { id: r.fabric.id, query: { color: r.color?.id } })} onClick={onClose}>
                             {t(L('Mato', 'Ткань', 'Fabric'))}
                           </a>
                         )}
@@ -587,9 +703,9 @@ export function StyleAdvisorModal() {
                             <span className="tabular text-[12.5px] text-graphite">{t(L(`sizga ${m.score}% mos`, `подходит на ${m.score}%`, `${m.score}% your palette`))}</span>
                           </div>
                           <div className="mt-auto flex gap-1.5 pt-2">
-                            <a className="btn btn-secondary btn-sm h-8 px-3 text-[12.5px]" href={href('studio', { query: { fabric: m.fabric.id, color: m.color.id, garment: styles.good[0]?.garment.typeKey ?? m.fabric.bestFor[0] } })} onClick={onClose}>3D</a>
-                            <a className="btn btn-secondary btn-sm h-8 px-3 text-[12.5px]" href={href('fabric', { id: m.fabric.id, query: { color: m.color.id } })} onClick={onClose}>{t(L('Ko‘rish', 'Открыть', 'View'))}</a>
-                            <button type="button" className={`btn btn-sm h-8 px-3 text-[12.5px] ${sampled ? 'btn-tape' : 'btn-secondary'}`} aria-pressed={sampled} onClick={() => toggleSample(m.fabric.id, m.color.id)}>
+                            <a className="btn btn-secondary btn-sm px-3 text-[13px]" href={href('studio', { query: { fabric: m.fabric.id, color: m.color.id, garment: styles.good[0]?.garment.typeKey ?? m.fabric.bestFor[0] } })} onClick={onClose}>3D</a>
+                            <a className="btn btn-secondary btn-sm px-3 text-[13px]" href={href('fabric', { id: m.fabric.id, query: { color: m.color.id } })} onClick={onClose}>{t(L('Ko‘rish', 'Открыть', 'View'))}</a>
+                            <button type="button" className={`btn btn-sm px-3 text-[13px] ${sampled ? 'btn-tape' : 'btn-secondary'}`} aria-pressed={sampled} onClick={() => toggleSample(m.fabric.id, m.color.id)}>
                               {sampled ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
                               {t(L('Namuna', 'Образец', 'Sample'))}
                             </button>
@@ -615,11 +731,22 @@ export function StyleAdvisorModal() {
   );
 }
 
-function Tip({ n, text }: { n: number; text: string }) {
+/** A trait as a dot on a two-ended scale, e.g. Warm ●──── Cool. */
+function TraitScale({ label, from, to, value }: { label: string; from: string; to: string; value: number }) {
+  const pct = Math.round(Math.min(1, Math.max(0, value)) * 100);
   return (
-    <div className="flex gap-2.5 rounded-xl bg-well/60 p-3">
-      <span className="tabular flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink text-[12px] text-white">{n}</span>
-      <span>{text}</span>
+    <div className="grid grid-cols-[78px_1fr] items-center gap-3 text-[12.5px]">
+      <dt className="text-graphite">{label}</dt>
+      <dd>
+        <div className="relative h-1.5 rounded-full bg-well">
+          <span className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink ring-[3px] ring-paper" style={{ left: `${pct}%` }} aria-hidden="true" />
+        </div>
+        <div className="mt-1.5 flex justify-between text-[11.5px] text-graphite">
+          <span className={pct <= 40 ? 'font-medium text-ink' : undefined}>{from}</span>
+          <span className={pct >= 60 ? 'font-medium text-ink' : undefined}>{to}</span>
+        </div>
+        <span className="sr-only">{pct <= 40 ? from : pct >= 60 ? to : `${from} / ${to}`}</span>
+      </dd>
     </div>
   );
 }
@@ -648,6 +775,7 @@ function CameraCapture({
   const [facing, setFacing] = useState<'user' | 'environment'>('user');
   const [ready, setReady] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [timer, setTimer] = useState(initialMode === 'body');
   const [dark, setDark] = useState(false);
   const onFailRef = useRef(onFail);
   onFailRef.current = onFail;
@@ -724,17 +852,17 @@ function CameraCapture({
   }, [countdown, snap]);
 
   return (
-    <div className="px-5 py-6 sm:px-8">
+    <div className="flex min-h-full flex-col px-4 py-4 sm:px-8 sm:py-6">
       <div className="mb-3 flex justify-center">
-        <div className="inline-flex rounded-full border border-line p-0.5" role="radiogroup" aria-label={t(L('Nimani suratga olamiz', 'Что снимаем', 'What to photograph'))}>
+        <div className="inline-flex rounded-full bg-well p-1" role="radiogroup" aria-label={t(L('Nimani suratga olamiz', 'Что снимаем', 'What to photograph'))}>
           {(['face', 'body'] as const).map((m) => (
             <button
               key={m}
               type="button"
               role="radio"
               aria-checked={mode === m}
-              onClick={() => setMode(m)}
-              className={`flex h-8 items-center gap-1.5 rounded-full px-3.5 text-[13px] transition-colors ${mode === m ? 'bg-ink text-white' : 'text-graphite hover:text-ink'}`}
+              onClick={() => { setMode(m); if (m === 'body') setTimer(true); }}
+              className={`flex h-10 items-center gap-1.5 rounded-full px-4 text-[13.5px] transition-colors ${mode === m ? 'bg-paper text-ink shadow-sm' : 'text-graphite hover:text-ink'}`}
             >
               {m === 'face' ? <ScanFace className="h-4 w-4" /> : <PersonStanding className="h-4 w-4" />}
               {m === 'face' ? t(L('Faqat yuz', 'Только лицо', 'Face only')) : t(L('To‘liq bo‘y', 'В полный рост', 'Full length'))}
@@ -742,7 +870,8 @@ function CameraCapture({
           ))}
         </div>
       </div>
-      <div className="relative mx-auto aspect-[3/4] max-h-[62vh] overflow-hidden rounded-xl bg-ink">
+      {/* sized from the viewport height so the shutter row always stays on screen */}
+      <div className="relative mx-auto aspect-[3/4] overflow-hidden rounded-2xl bg-ink" style={{ width: 'min(100%, calc((100dvh - 330px) * 0.75), 520px)' }}>
         <video ref={videoRef} playsInline muted className="h-full w-full object-cover" style={facing === 'user' ? { transform: 'scaleX(-1)' } : undefined} />
         <svg viewBox="0 0 60 80" className="pointer-events-none absolute inset-0 h-full w-full opacity-60" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
           {mode === 'face' ? (
@@ -778,21 +907,44 @@ function CameraCapture({
       <p className="mt-3 text-center text-[13.5px] text-graphite">
         {mode === 'face'
           ? t(L('Yuzingizni oval ichiga joylang, deraza tomonga qarang.', 'Поместите лицо в овал, повернитесь к окну.', 'Fit your face in the oval and face the window.'))
-          : t(L('Shablon ichiga to‘liq kiring, qo‘llarni biroz yonga oching.', 'Встаньте в контур целиком, руки чуть в стороны.', 'Fit your whole body in the outline, arms slightly out.'))}
+          : t(L('Telefonni qo‘ying, 5 soniyada shablonga to‘liq kiring.', 'Поставьте телефон и за 5 секунд встаньте в контур.', 'Prop the phone up and step into the outline within 5 seconds.'))}
       </p>
-      <div className="mt-4 flex flex-wrap justify-center gap-2">
-        <button type="button" className="btn btn-secondary" onClick={onCancel}>{t(UI.back)}</button>
-        <button type="button" className="btn btn-secondary" onClick={() => setFacing(facing === 'user' ? 'environment' : 'user')} aria-label={t(L('Kamerani almashtirish', 'Сменить камеру', 'Switch camera'))}>
-          <SwitchCamera className="h-4 w-4" />
+      {/* camera-app layout: back · shutter · switch, with the self-timer as a toggle */}
+      <div className="mx-auto mt-auto grid w-full max-w-sm grid-cols-[1fr_auto_1fr] items-center gap-3 pt-4" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <div className="flex justify-start">
+          <button type="button" className="btn btn-ghost px-3" onClick={onCancel}>{t(UI.back)}</button>
+        </div>
+        <button
+          type="button"
+          className="flex h-[76px] w-[76px] items-center justify-center rounded-full border-4 border-ink/85 transition-transform active:scale-95 disabled:opacity-40"
+          disabled={!ready}
+          onClick={() => (countdown !== null ? setCountdown(null) : timer ? setCountdown(5) : snap())}
+          aria-label={countdown !== null ? t(L('Taymerni to‘xtatish', 'Остановить таймер', 'Stop the timer')) : t(L('Suratga olish', 'Снять', 'Take photo'))}
+          data-autofocus
+        >
+          <span className={`flex h-[58px] w-[58px] items-center justify-center rounded-full text-white ${countdown !== null ? 'bg-danger' : 'bg-ink'}`}>
+            {countdown !== null ? <X className="h-6 w-6" /> : <Camera className="h-6 w-6" />}
+          </span>
         </button>
-        <button type="button" className="btn btn-secondary" disabled={!ready || countdown !== null} onClick={() => setCountdown(5)}>
-          <Timer className="h-4 w-4" />5 s
-        </button>
-        <button type="button" className="btn btn-primary" disabled={!ready || countdown !== null} onClick={snap} data-autofocus>
-          <Camera className="h-4 w-4" />
-          {t(L('Suratga olish', 'Снять', 'Take photo'))}
-        </button>
+        <div className="flex justify-end gap-1">
+          <button
+            type="button"
+            className={`icon-btn h-11 w-11 border ${timer ? 'border-ink bg-ink text-white hover:bg-ink' : 'border-line'}`}
+            aria-pressed={timer}
+            onClick={() => setTimer(!timer)}
+            aria-label={t(L('5 soniyali taymer', 'Таймер 5 секунд', '5-second timer'))}
+            title={t(L('5 soniyali taymer', 'Таймер 5 секунд', '5-second timer'))}
+          >
+            <Timer className="h-5 w-5" />
+          </button>
+          <button type="button" className="icon-btn h-11 w-11 border border-line" onClick={() => setFacing(facing === 'user' ? 'environment' : 'user')} aria-label={t(L('Kamerani almashtirish', 'Сменить камеру', 'Switch camera'))}>
+            <SwitchCamera className="h-5 w-5" />
+          </button>
+        </div>
       </div>
+      <p className="mt-2 text-center text-[12px] text-muted" aria-live="polite">
+        {timer ? t(L('Taymer yoqilgan: tugmani bosgach 5 soniyadan keyin suratga oladi', 'Таймер включён: снимок через 5 секунд после нажатия', 'Timer on: the photo is taken 5 seconds after you tap')) : '\u00a0'}
+      </p>
     </div>
   );
 }

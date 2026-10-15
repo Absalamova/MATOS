@@ -150,19 +150,22 @@ export function VisualSearchModal() {
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
             onDrop={(e) => { e.preventDefault(); setDragging(false); readFile(e.dataTransfer.files?.[0]); }}
-            className={`mt-6 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-12 text-center transition-colors ${dragging ? 'border-ink bg-mist' : 'border-line'}`}
+            className={`mt-5 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-8 text-center transition-colors sm:mt-6 sm:px-6 sm:py-12 ${dragging ? 'border-ink bg-mist' : 'border-line'}`}
           >
             <ImageUp className="h-8 w-8 text-graphite" strokeWidth={1.4} />
-            <p className="mt-4 font-display text-[24px]">{t(L('Rasmni shu yerga tashlang', 'Перетащите фото сюда', 'Drop a photo here'))}</p>
-            <p className="mt-1 text-[13.5px] text-graphite">{t(L('yoki Ctrl+V bilan skrinshotni joylang', 'или вставьте скриншот через Ctrl+V', 'or paste a screenshot with Ctrl+V'))}</p>
-            <div className="mt-6 flex flex-wrap justify-center gap-3">
-              <button type="button" className="btn btn-primary" onClick={() => fileRef.current?.click()} data-autofocus>
-                <ImageUp className="h-4 w-4" />
-                {t(L('Rasm tanlash', 'Выбрать фото', 'Choose photo'))}
+            {/* drag-and-drop and Ctrl+V mean nothing on a phone, so touch screens get their own wording */}
+            <p className="mt-4 font-display text-[24px] pointer-coarse:hidden">{t(L('Rasmni shu yerga tashlang', 'Перетащите фото сюда', 'Drop a photo here'))}</p>
+            <p className="mt-1 text-[13.5px] text-graphite pointer-coarse:hidden">{t(L('yoki Ctrl+V bilan skrinshotni joylang', 'или вставьте скриншот через Ctrl+V', 'or paste a screenshot with Ctrl+V'))}</p>
+            <p className="mt-3 hidden font-display text-[22px] leading-tight pointer-coarse:block">{t(L('Kiyim rasmini qo‘shing', 'Добавьте фото наряда', 'Add a photo of the outfit'))}</p>
+            <p className="mt-1 hidden text-[13.5px] text-graphite pointer-coarse:block">{t(L('Skrinshot yoki galereyadagi rasm', 'Скриншот или фото из галереи', 'A screenshot or a photo from your gallery'))}</p>
+            <div className="mt-5 grid w-full max-w-sm grid-cols-2 gap-2 sm:mt-6 sm:flex sm:w-auto sm:max-w-none sm:flex-wrap sm:justify-center sm:gap-3">
+              <button type="button" className="btn btn-primary w-full px-3 sm:w-auto sm:px-[1.35rem]" onClick={() => fileRef.current?.click()} data-autofocus>
+                <ImageUp className="h-[18px] w-[18px] shrink-0" />
+                <span className="truncate">{t(L('Galereyadan', 'Из галереи', 'From gallery'))}</span>
               </button>
-              <button type="button" className="btn btn-secondary" onClick={() => camRef.current?.click()}>
-                <Camera className="h-4 w-4" />
-                {t(L('Suratga olish', 'Сфотографировать', 'Take a photo'))}
+              <button type="button" className="btn btn-secondary w-full px-3 sm:w-auto sm:px-[1.35rem]" onClick={() => camRef.current?.click()}>
+                <Camera className="h-[18px] w-[18px] shrink-0" />
+                <span className="truncate">{t(L('Suratga olish', 'Снять', 'Take a photo'))}</span>
               </button>
             </div>
           </div>

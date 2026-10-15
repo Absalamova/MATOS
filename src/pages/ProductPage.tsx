@@ -292,8 +292,10 @@ export function ProductPage({ route }: { route: Route }) {
       {/* Mobile buy bar */}
       <div data-bottom-bar="" className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-paper/95 px-4 py-3 backdrop-blur lg:hidden" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
         <div className="mx-auto flex max-w-xl items-center gap-2">
-          <button type="button" className={`icon-btn h-[46px] w-[46px] shrink-0 border ${sampled ? 'border-tape bg-tape' : 'border-line'}`} aria-pressed={sampled} aria-label={sampled ? t(UI.inSamples) : t(UI.samples)} onClick={() => toggleSample(fabric.id, color.id)}>
-            {sampled ? <Check className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+          {/* a bare “+” read as “add to cart”; the word says it is the free sample */}
+          <button type="button" className={`btn shrink-0 gap-1 px-3 ${sampled ? 'btn-tape' : 'btn-secondary'}`} aria-pressed={sampled} aria-label={sampled ? t(UI.inSamples) : t(UI.samples)} onClick={() => toggleSample(fabric.id, color.id)}>
+            {sampled ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            <span className="text-[13.5px]">{t(L('Namuna', 'Образец', 'Sample'))}</span>
           </button>
           <a className="btn btn-secondary shrink-0 px-4" href={studioLink()}>3D</a>
           <button type="button" className="btn btn-primary min-w-0 flex-1 px-3" onClick={buy} disabled={soldOut}>

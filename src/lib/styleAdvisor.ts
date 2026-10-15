@@ -475,6 +475,77 @@ export const SEASONS: Record<Season, { name: Localized; about: Localized; best: 
   },
 };
 
+/**
+ * Plain-language key to the four colour types. Shoppers read "Kuz" as the time of year, so each
+ * type carries its image (why it has that name), the three traits it stands for, who it usually
+ * fits and practical wear tips. Traits are shown as positions on three scales.
+ */
+export interface SeasonGuide {
+  /** what the season name stands for, in one picture */
+  image: Localized;
+  /** short tag shown under the name, e.g. "Iliq · yorqin · och" */
+  tag: Localized;
+  /** 0 = warm, 1 = cool */
+  temperature: number;
+  /** 0 = light, 1 = deep */
+  depth: number;
+  /** 0 = soft (muted), 1 = clear (bright) */
+  clarity: number;
+  /** typical look of people with this type */
+  looks: Localized;
+  metal: Localized;
+  neutrals: Localized;
+  /** where to put the colours first */
+  tip: Localized;
+}
+
+export const SEASON_GUIDE: Record<Season, SeasonGuide> = {
+  spring: {
+    image: L('bahor gullari kabi toza, iliq va quvnoq ranglar', 'чистые, тёплые и весёлые цвета, как весенние цветы', 'clean, warm, cheerful colours, like spring flowers'),
+    tag: L('Iliq · och · yorqin', 'Тёплый · светлый · яркий', 'Warm · light · clear'),
+    temperature: 0.15,
+    depth: 0.25,
+    clarity: 0.85,
+    looks: L('Teri och va iliq (oltinrang yoki shaftoli tus), soch och yoki malla-qo‘ng‘ir, ko‘zlar yorqin.', 'Светлая тёплая кожа (золотистая или персиковая), светлые или рыжевато-русые волосы, яркие глаза.', 'Light, warm skin (golden or peachy), light or strawberry-brown hair, bright eyes.'),
+    metal: L('Oltin, yorqin bronza', 'Золото, светлая бронза', 'Gold, light bronze'),
+    neutrals: L('Fil suyagi, och tuya juni, iliq to‘q ko‘k', 'Слоновая кость, светлый кэмел, тёплый тёмно-синий', 'Ivory, light camel, warm navy'),
+    tip: L('Yorqin rangni yuzga yaqin kiying: ko‘ylak, bluzka, ro‘mol. Qorani och tuya juni yoki to‘q ko‘k bilan almashtiring.', 'Яркий цвет носите у лица: платье, блузка, платок. Чёрный замените светлым кэмелом или тёмно-синим.', 'Wear the bright colour near your face: a dress, blouse or scarf. Swap black for light camel or navy.'),
+  },
+  summer: {
+    image: L('yozgi osmon va dengiz kabi salqin, yumshoq, changlangan ranglar', 'прохладные, мягкие, пыльные цвета, как летнее небо и море', 'cool, soft, dusty colours, like a summer sky and sea'),
+    tag: L('Sovuq · och · yumshoq', 'Холодный · светлый · мягкий', 'Cool · light · soft'),
+    temperature: 0.8,
+    depth: 0.3,
+    clarity: 0.2,
+    looks: L('Teri och, pushtiroq yoki sovuq tus, soch och-qo‘ng‘ir yoki kulrangroq, kontrast yumshoq.', 'Светлая кожа с розовым или холодным подтоном, русые или пепельные волосы, мягкий контраст.', 'Light skin with a pink or cool cast, ash or light-brown hair, soft contrast.'),
+    metal: L('Kumush, oq oltin', 'Серебро, белое золото', 'Silver, white gold'),
+    neutrals: L('Tuman kulrangi, yumshoq to‘q ko‘k, kulrang-bej', 'Туманный серый, мягкий тёмно-синий, серо-бежевый', 'Fog grey, soft navy, greige'),
+    tip: L('Bir rangning bir necha och-to‘q tuslarini birga kiying. Keskin qora o‘rniga yumshoq to‘q ko‘k yoki kulrang oling.', 'Сочетайте оттенки одного цвета. Вместо резкого чёрного берите мягкий тёмно-синий или серый.', 'Combine shades of one colour. Instead of harsh black, pick soft navy or grey.'),
+  },
+  autumn: {
+    image: L('kuzgi barglar, yer va ziravorlar kabi iliq, chuqur, tabiiy ranglar', 'тёплые, глубокие, природные цвета, как осенние листья, земля и пряности', 'warm, deep, natural colours, like autumn leaves, earth and spice'),
+    tag: L('Iliq · to‘q · yumshoq', 'Тёплый · глубокий · мягкий', 'Warm · deep · soft'),
+    temperature: 0.15,
+    depth: 0.75,
+    clarity: 0.3,
+    looks: L('Teri iliq (oltinrang, zaytun yoki bug‘doyrang), soch qo‘ng‘ir, mis yoki kashtan rang, kontrast o‘rtacha.', 'Тёплая кожа (золотистая, оливковая, смуглая), каштановые или медные волосы, средний контраст.', 'Warm skin (golden, olive or wheat), brown, copper or chestnut hair, medium contrast.'),
+    metal: L('Oltin, bronza, mis', 'Золото, бронза, медь', 'Gold, bronze, copper'),
+    neutrals: L('Tuya juni, xaki, zaytun, ekru', 'Кэмел, хаки, олива, экрю', 'Camel, khaki, olive, ecru'),
+    tip: L('Oppoq o‘rniga ekru yoki sutrang oling. Terrakota, zaytun va zumrad yuzni jonli ko‘rsatadi.', 'Вместо белоснежного берите экрю или молочный. Терракота, олива и изумруд оживляют лицо.', 'Pick ecru or cream over stark white. Terracotta, olive and emerald bring your face to life.'),
+  },
+  winter: {
+    image: L('qishki qor va tun kabi sovuq, aniq, kontrastli ranglar', 'холодные, чистые, контрастные цвета, как зимний снег и ночь', 'cool, clear, high-contrast colours, like winter snow and night'),
+    tag: L('Sovuq · to‘q · yorqin', 'Холодный · глубокий · яркий', 'Cool · deep · clear'),
+    temperature: 0.85,
+    depth: 0.7,
+    clarity: 0.85,
+    looks: L('Teri juda och yoki to‘q, sovuq tus, soch to‘q (qora, to‘q qo‘ng‘ir), teri bilan soch orasida kontrast kuchli.', 'Очень светлая или тёмная кожа с холодным подтоном, тёмные волосы, сильный контраст кожи и волос.', 'Very light or deep skin with a cool cast, dark hair, strong contrast between skin and hair.'),
+    metal: L('Kumush, platina', 'Серебро, платина', 'Silver, platinum'),
+    neutrals: L('Qora, oq, ko‘mir, to‘q indigo', 'Чёрный, белый, уголь, глубокий индиго', 'Black, white, charcoal, deep indigo'),
+    tip: L('Qora-oq va bitta yorqin rang (yoqut, zumrad) sizning kuchli tomoningiz. Xira bej va to‘q sariqni yuzdan uzoqroq kiying.', 'Чёрно-белое плюс один яркий цвет (рубин, изумруд) — ваш козырь. Блёклый беж и оранжевый носите подальше от лица.', 'Black-and-white plus one bright colour (ruby, emerald) is your strength. Keep muted beige and orange away from your face.'),
+  },
+};
+
 export const UNDERTONE_LABEL: Record<Undertone, Localized> = {
   warm: L('Iliq', 'Тёплый', 'Warm'),
   neutral: L('Neytral', 'Нейтральный', 'Neutral'),
