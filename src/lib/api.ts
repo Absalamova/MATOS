@@ -108,6 +108,24 @@ export function errorText(err: unknown, t: T): string {
       return t(L('Savatdagi mato sotuvdan olingan. Savatni yangilang.', 'Ткань из корзины снята с продажи. Обновите корзину.', 'A fabric in your bag is no longer on sale. Update the bag.'));
     case 'tailor_unavailable':
       return t(L('Bu atelye hozir buyurtma qabul qilmayapti.', 'Это ателье сейчас не принимает заказы.', 'This atelier isn’t taking requests right now.'));
+    case 'sms_cooldown':
+    case 'sms_limit': {
+      const sec = Number(err.details?.retryInSec ?? 60);
+      const wait = sec >= 120 ? t(L(`${Math.ceil(sec / 60)} daqiqa`, `${Math.ceil(sec / 60)} мин`, `${Math.ceil(sec / 60)} min`)) : t(L(`${sec} soniya`, `${sec} сек`, `${sec} s`));
+      return t(L(`Yangi kodni ${wait}dan keyin so‘rash mumkin.`, `Новый код можно запросить через ${wait}.`, `You can request a new code in ${wait}.`));
+    }
+    case 'sms_failed':
+      return t(L('SMS yuborib bo‘lmadi. Raqamni tekshirib, qayta urinib ko‘ring.', 'Не удалось отправить SMS. Проверьте номер и попробуйте снова.', 'We couldn’t send the SMS. Check the number and try again.'));
+    case 'sms_unavailable':
+      return t(L('SMS xizmati vaqtincha ishlamayapti. Birozdan keyin urinib ko‘ring.', 'SMS-сервис временно недоступен. Попробуйте позже.', 'SMS service is temporarily unavailable. Try again later.'));
+    case 'code_invalid': {
+      const left = Number(err.details?.attemptsLeft ?? 0);
+      return t(L(`Kod noto‘g‘ri. Yana ${left} ta urinish qoldi.`, `Неверный код. Осталось попыток: ${left}.`, `Wrong code. ${left} attempts left.`));
+    }
+    case 'code_expired':
+      return t(L('Kod eskirgan yoki urinishlar tugagan. Yangi kod so‘rang.', 'Код устарел или попытки закончились. Запросите новый.', 'The code expired or you ran out of attempts. Request a new one.'));
+    case 'verification_invalid':
+      return t(L('Telefon tasdig‘i muddati o‘tdi. Raqamni qayta tasdiqlang.', 'Подтверждение номера истекло. Подтвердите номер снова.', 'Phone confirmation expired. Please confirm your number again.'));
     case 'validation':
       return t(L('Maydonlarni tekshiring.', 'Проверьте поля формы.', 'Check the highlighted fields.'));
     default:
@@ -120,7 +138,18 @@ export function errorText(err: unknown, t: T): string {
 export const fetchCatalog = (signal?: AbortSignal) => api<CatalogResponse>('/api/catalog', { signal, timeoutMs: 12000 });
 export const fetchTailors = (signal?: AbortSignal) => api<{ tailors: Tailor[] }>('/api/tailors', { signal }).then((r) => r.tailors);
 
-export const register = (input: { name: string; phone: string; password: string; measurements?: BodyMeasurements }) =>
+export interface PhoneCodeSent {
+  expiresInSec: number;
+  resendInSec: number;
+  /** Only from a local/test API with the dev SMS provider. */
+  devCode?: string;
+}
+/** Step 1 of sign-up: text a 6-digit code to the number. */
+export const startPhoneVerification = (phone: string) => api<PhoneCodeSent>('/api/auth/phone/start', { method: 'POST', body: { phone }, timeoutMs: 20000 });
+/** Step 2: exchange the code for a single-use token that step 3 (register) must present. */
+export const verifyPhoneCode = (phone: string, code: string) =>
+  api<{ verificationToken: string; expiresInSec: number }>('/api/auth/phone/verify', { method: 'POST', body: { phone, code } });
+export const register = (input: { name: string; phone: string; password: string; verificationToken?: string; measurements?: BodyMeasurements }) =>
   api<AuthResult>('/api/auth/register', { method: 'POST', body: input });
 export const login = (phone: string, password: string) => api<AuthResult>('/api/auth/login', { method: 'POST', body: { phone, password } });
 export const logout = () => api<void>('/api/auth/logout', { method: 'POST', timeoutMs: 5000 });

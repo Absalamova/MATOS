@@ -5,9 +5,11 @@ import { parse, v } from './lib/validate.ts';
 import { badRequest, conflict, forbidden, notFound } from './lib/errors.ts';
 import { shortHash } from './lib/crypto.ts';
 import type { Notifier } from './lib/telegram.ts';
+import type { SmsProvider } from './lib/sms.ts';
 import type { CatalogResponse, OrderKind, OrderStatus, TailorRequestStatus, TailorStatus } from '../../shared/types.ts';
 import { orderStatusesFor, TAILOR_REQUEST_STATUSES } from '../../shared/status.ts';
 import * as auth from './modules/auth.ts';
+import * as phoneVerify from './modules/phoneVerify.ts';
 import * as catalog from './modules/catalog.ts';
 import * as orders from './modules/orders.ts';
 import * as tailors from './modules/tailors.ts';
@@ -20,6 +22,7 @@ export interface Deps {
   db: Db;
   config: Config;
   notifier: Notifier;
+  sms: SmsProvider;
   startedAt: number;
 }
 
@@ -43,7 +46,7 @@ const idParam = (ctx: Ctx) => {
   return n;
 };
 
-export function buildRouter({ db, config, notifier, startedAt }: Deps) {
+export function buildRouter({ db, config, notifier, sms, startedAt }: Deps) {
   const r = new Router();
   const userTtl = config.sessionDaysUser * 86400000;
   const adminTtl = config.sessionHoursAdmin * 3600000;
@@ -86,9 +89,30 @@ export function buildRouter({ db, config, notifier, startedAt }: Deps) {
 
   /* ───────────── Shopper account ───────────── */
 
+  // Sign-up is three steps: SMS code to the number → code exchanged for a verification token → register.
+  r.post('/api/auth/phone/start', async (ctx) => {
+    const input = parse(v.object({ phone: v.phone() }), ctx.body);
+    return phoneVerify.startPhoneVerification(db, sms, input.phone, ctx.ip);
+  });
+
+  r.post('/api/auth/phone/verify', (ctx) => {
+    const input = parse(v.object({ phone: v.phone(), code: v.string({ pattern: /^\d{6}$/, message: '6 xonali kodni yozing' }) }), ctx.body);
+    return phoneVerify.confirmPhoneCode(db, input.phone, input.code);
+  });
+
   r.post('/api/auth/register', async (ctx) => {
-    const input = parse(v.object({ name: v.string({ min: 2, max: 80 }), phone: v.phone(), password, measurements: measurementsSchema.optional() }), ctx.body);
-    const user = await auth.registerUser(db, input);
+    const input = parse(
+      v.object({
+        name: v.string({ min: 2, max: 80 }),
+        phone: v.phone(),
+        password,
+        verificationToken: v.string({ min: 20, max: 200, message: 'Telefon raqamini tasdiqlang' }),
+        measurements: measurementsSchema.optional(),
+      }),
+      ctx.body,
+    );
+    const { verificationToken, ...fields } = input;
+    const user = await auth.registerUser(db, fields, () => phoneVerify.consumeVerification(db, input.phone, verificationToken));
     return new Reply(201, { token: auth.createSession(db, 'user', user.id, userTtl, ctx), user });
   });
 

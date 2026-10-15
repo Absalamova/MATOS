@@ -266,7 +266,7 @@ export function createHandler({ config, router, fallback, rateLimit }: AppOption
         const body: Record<string, unknown> = { code: err.code, message: err.message };
         if (err.fields) body.fields = err.fields;
         if (err.details) body.details = err.details;
-        send(res, err.status, { error: body }, { 'Cache-Control': 'no-store', ...(err.status === 429 ? { 'Retry-After': '60' } : {}) }, head);
+        send(res, err.status, { error: body }, { 'Cache-Control': 'no-store', ...(err.status === 429 ? { 'Retry-After': String(Number(err.details?.retryInSec) || 60) } : {}) }, head);
       } else {
         status = 500;
         log.error('Kutilmagan xato', { reqId, method, path, err: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : undefined });

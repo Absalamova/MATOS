@@ -131,22 +131,26 @@ export function requireAdmin(db: Db, ctx: Ctx, role?: AdminRole): AdminUser {
 
 /* ───────────── Shoppers ───────────── */
 
-export async function registerUser(db: Db, input: { name: string; phone: string; password: string; measurements?: BodyMeasurements }) {
+/** `claimPhone` runs in the same transaction as the insert (e.g. spending the SMS verification token). */
+export async function registerUser(db: Db, input: { name: string; phone: string; password: string; measurements?: BodyMeasurements }, claimPhone?: () => void) {
   if (db.get('SELECT 1 FROM users WHERE phone = ?', input.phone)) {
     throw conflict('Bu raqam bilan profil allaqachon bor. Kirish bo‘limidan foydalaning.', 'phone_taken');
   }
   const hash = await hashPassword(input.password);
   const now = nowIso();
   try {
-    const r = db.run(
-      'INSERT INTO users (name, phone, password_hash, measurements, created_at, last_login_at) VALUES (?, ?, ?, ?, ?, ?)',
-      input.name,
-      input.phone,
-      hash,
-      input.measurements ? JSON.stringify(input.measurements) : null,
-      now,
-      now,
-    );
+    const r = db.tx(() => {
+      claimPhone?.();
+      return db.run(
+        'INSERT INTO users (name, phone, password_hash, measurements, created_at, last_login_at) VALUES (?, ?, ?, ?, ?, ?)',
+        input.name,
+        input.phone,
+        hash,
+        input.measurements ? JSON.stringify(input.measurements) : null,
+        now,
+        now,
+      );
+    });
     return userOut(db.get<UserRow>('SELECT * FROM users WHERE id = ?', r.lastId)!);
   } catch (err) {
     // Two registrations racing for one phone.

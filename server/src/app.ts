@@ -9,6 +9,8 @@ import { buildRouter } from './routes.ts';
 import { configureLog, log } from './lib/log.ts';
 import { createRateLimiter } from './lib/rateLimit.ts';
 import { createNotifier } from './lib/telegram.ts';
+import { createSms } from './lib/sms.ts';
+import { sweepPhoneCodes } from './modules/phoneVerify.ts';
 import { serveUpload } from './modules/uploads.ts';
 import { seedFabrics } from './modules/catalog.ts';
 import { seedTailors } from './modules/tailors.ts';
@@ -79,7 +81,8 @@ export async function startServer(overrides: Partial<Config> = {}, opts: { quiet
 
   const notifier = createNotifier(config.telegram);
   const rateLimit = createRateLimiter({ multiplier: config.env === 'test' ? 50 : 1 });
-  const router = buildRouter({ db, config, notifier, startedAt: Date.now() });
+  const sms = createSms(config.sms, config.env);
+  const router = buildRouter({ db, config, notifier, sms, startedAt: Date.now() });
   const handler = createHandler({
     config,
     router,
@@ -115,6 +118,7 @@ export async function startServer(overrides: Partial<Config> = {}, opts: { quiet
   const sweep = setInterval(() => {
     try {
       db.run('DELETE FROM sessions WHERE expires_at <= ?', nowIso());
+      sweepPhoneCodes(db);
       db.run('DELETE FROM idempotency_keys WHERE created_at <= ?', new Date(Date.now() - 2 * 86400000).toISOString());
     } catch (err) {
       log.warn('Tozalash bajarilmadi', { err: String(err) });

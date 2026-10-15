@@ -25,6 +25,7 @@ before(async () => {
       admin: { email: ADMIN.email, password: ADMIN.password, name: 'Owner' },
       corsOrigins: ['http://shop.test'],
       telegram: { token: '', chatId: '' },
+      sms: { provider: 'dev', eskiz: { email: '', password: '', from: '', baseUrl: '' } },
     },
     { quiet: true },
   );
@@ -67,6 +68,15 @@ async function call<T = any>(method: string, url: string, opts: { body?: unknown
 let adminToken = '';
 let userToken = '';
 const PHONE = '+998 90 111 22 33';
+
+/** Runs the SMS step with the dev provider, which returns the code instead of texting it. */
+async function verifiedToken(phone: string): Promise<string> {
+  const s = await call('POST', '/api/auth/phone/start', { body: { phone } });
+  assert.equal(s.status, 200, JSON.stringify(s.body));
+  const v = await call('POST', '/api/auth/phone/verify', { body: { phone, code: s.body.devCode } });
+  assert.equal(v.status, 200, JSON.stringify(v.body));
+  return v.body.verificationToken;
+}
 
 describe('public catalog', () => {
   it('reports health', async () => {
@@ -118,13 +128,59 @@ describe('shopper accounts', () => {
     assert.ok(r.body.error.fields.password);
   });
 
-  it('registers, rejects a duplicate phone and logs in', async () => {
+  it('refuses to register a number that was not confirmed by SMS', async () => {
     const r = await call('POST', '/api/auth/register', { body: { name: 'Malika Saidova', phone: PHONE, password: 'secret12' } });
+    assert.equal(r.status, 422);
+    assert.ok(r.body.error.fields.verificationToken);
+    const forged = await call('POST', '/api/auth/register', { body: { name: 'Malika Saidova', phone: PHONE, password: 'secret12', verificationToken: 'x'.repeat(43) } });
+    assert.equal(forged.status, 400);
+    assert.equal(forged.body.error.code, 'verification_invalid');
+  });
+
+  it('limits code guesses and resends', async () => {
+    const phone = '+998 93 555 00 11';
+    const s = await call('POST', '/api/auth/phone/start', { body: { phone } });
+    assert.equal(s.status, 200);
+    assert.match(s.body.devCode, /^\d{6}$/);
+    assert.equal(s.body.resendInSec, 60);
+
+    const again = await call('POST', '/api/auth/phone/start', { body: { phone } });
+    assert.equal(again.status, 429);
+    assert.equal(again.body.error.code, 'sms_cooldown');
+    assert.ok(again.body.error.details.retryInSec > 0);
+
+    const wrongCode = s.body.devCode === '000000' ? '111111' : '000000';
+    for (let i = 4; i >= 1; i--) {
+      const w = await call('POST', '/api/auth/phone/verify', { body: { phone, code: wrongCode } });
+      assert.equal(w.body.error.code, 'code_invalid');
+      assert.equal(w.body.error.details.attemptsLeft, i);
+    }
+    const last = await call('POST', '/api/auth/phone/verify', { body: { phone, code: wrongCode } });
+    assert.equal(last.body.error.code, 'code_expired');
+    // The right code no longer works once the attempts are spent.
+    const late = await call('POST', '/api/auth/phone/verify', { body: { phone, code: s.body.devCode } });
+    assert.equal(late.body.error.code, 'code_expired');
+  });
+
+  it('binds the verification token to one number and one use', async () => {
+    const phone = '+998 94 777 88 99';
+    const token = await verifiedToken(phone);
+    const other = await call('POST', '/api/auth/register', { body: { name: 'Boshqa Odam', phone: '+998 94 777 88 98', password: 'secret12', verificationToken: token } });
+    assert.equal(other.body.error.code, 'verification_invalid');
+    const ok = await call('POST', '/api/auth/register', { body: { name: 'Aziz Karimov', phone, password: 'secret12', verificationToken: token } });
+    assert.equal(ok.status, 201);
+    const taken = await call('POST', '/api/auth/phone/start', { body: { phone } });
+    assert.equal(taken.status, 409);
+    assert.equal(taken.body.error.code, 'phone_taken');
+  });
+
+  it('registers, rejects a duplicate phone and logs in', async () => {
+    const r = await call('POST', '/api/auth/register', { body: { name: 'Malika Saidova', phone: PHONE, password: 'secret12', verificationToken: await verifiedToken(PHONE) } });
     assert.equal(r.status, 201);
     assert.equal(r.body.user.phone, '998901112233');
     userToken = r.body.token;
 
-    const dup = await call('POST', '/api/auth/register', { body: { name: 'Someone', phone: '901112233', password: 'secret12' } });
+    const dup = await call('POST', '/api/auth/register', { body: { name: 'Someone', phone: '901112233', password: 'secret12', verificationToken: 'y'.repeat(43) } });
     assert.equal(dup.status, 409);
     assert.equal(dup.body.error.code, 'phone_taken');
 

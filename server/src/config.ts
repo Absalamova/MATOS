@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { SmsConfig } from './lib/sms.ts';
 
 /** Repository root (…/MATOS). */
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -39,6 +40,8 @@ export interface Config {
   trustProxy: number;
   admin: { email: string; password: string; name: string };
   telegram: { token: string; chatId: string };
+  /** SMS gateway for phone verification (see lib/sms.ts). */
+  sms: SmsConfig;
   sessionDaysUser: number;
   sessionHoursAdmin: number;
   /** Minutes east of UTC for daily reports (Uzbekistan: +300, no DST). */
@@ -85,6 +88,15 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
       name: e.ADMIN_NAME || 'Administrator',
     },
     telegram: { token: e.TELEGRAM_BOT_TOKEN || '', chatId: e.TELEGRAM_CHAT_ID || '' },
+    sms: {
+      provider: (e.SMS_PROVIDER || '').trim(),
+      eskiz: {
+        email: (e.ESKIZ_EMAIL || '').trim(),
+        password: e.ESKIZ_PASSWORD || '',
+        from: (e.ESKIZ_FROM || '4546').trim(),
+        baseUrl: (e.ESKIZ_BASE_URL || 'https://notify.eskiz.uz').replace(/\/$/, ''),
+      },
+    },
     sessionDaysUser: num(e.SESSION_DAYS_USER, 30),
     sessionHoursAdmin: num(e.SESSION_HOURS_ADMIN, 12),
     tzOffsetMin: num(e.TZ_OFFSET_MIN, 300),

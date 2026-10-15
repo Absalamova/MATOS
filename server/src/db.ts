@@ -271,6 +271,24 @@ const MIGRATIONS: string[] = [
     created_at TEXT NOT NULL
   );
   `,
+  /* 2 — SMS codes that prove a shopper owns the phone number before sign-up */ `
+  CREATE TABLE phone_codes (
+    id INTEGER PRIMARY KEY,
+    phone TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    code_hash TEXT NOT NULL,
+    salt TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    verified_at TEXT,
+    ticket_hash TEXT UNIQUE,
+    ticket_expires_at TEXT,
+    used_at TEXT,
+    ip TEXT
+  );
+  CREATE INDEX idx_phone_codes_phone ON phone_codes (phone, purpose, created_at);
+  `,
 ];
 
 export function migrate(db: Db) {

@@ -145,6 +145,7 @@ API ga npm kutubxonalari kerak emas — u faqat Node.js’ning o‘zida ishlaydi
 | `TRUST_PROXY=1` | nginx/Caddy/Railway orqasida mijozning haqiqiy IP sini olish (proksi soni; Cloudflare + Railway bo‘lsa `2`) |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Birinchi ishga tushishda yaratiladigan ega hisobi (parol ≥ 10 belgi) |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Yangi buyurtma/so‘rov haqida Telegram xabari |
+| `SMS_PROVIDER`, `ESKIZ_EMAIL`, `ESKIZ_PASSWORD`, `ESKIZ_FROM` | Ro‘yxatdan o‘tishda SMS kod (Eskiz.uz). Productionda bo‘sh bo‘lsa yangi profil ochilmaydi; kompyuterda kod server logiga va oynaga chiqadi |
 | `DATA_DIR` | Baza va suratlar papkasi |
 
 Domenlar boshqacha bo‘lsa, sayt va panel uchun `.env.production` faylida `VITE_API_URL`, `VITE_ADMIN_URL`, `VITE_STORE_URL` ni yozing (GitHub Actions uchun — repository variables).
@@ -166,7 +167,7 @@ Domenlar boshqacha bo‘lsa, sayt va panel uchun `.env.production` faylida `VITE
 ## 5. API qisqacha
 
 Ochiq: `GET /api/catalog` (ETag bilan), `GET /api/tailors`, `POST /api/orders`, `POST /api/tailor-requests`, `POST /api/tailors/apply`
-Mijoz: `POST /api/auth/register|login|logout`, `GET|PATCH /api/me`, `GET /api/me/orders`
+Mijoz: `POST /api/auth/phone/start` (SMS kod) → `POST /api/auth/phone/verify` (kod → `verificationToken`) → `POST /api/auth/register`, `POST /api/auth/login|logout`, `GET|PATCH /api/me`, `GET /api/me/orders`
 Panel (`/api/admin/*`, Bearer token): `auth/login`, `stats`, `orders` (+ `export` CSV), `tailor-requests`, `tailors`, `fabrics`, `uploads`, `customers`, `settings`, `staff`
 
 Xatolar bir xil ko‘rinishda: `{ "error": { "code": "out_of_stock", "message": "…", "fields": { … } } }`
