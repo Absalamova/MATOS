@@ -464,3 +464,166 @@ describe('customers & staff', () => {
     assert.equal(after.status, 401);
   });
 });
+
+describe('QR card payments', () => {
+  const CARD = '8600 1234 5678 9012';
+  const guest = { name: 'QR Mijoz', phone: '+998 97 555 44 33' };
+  const qrOrder = (meters = 1) => ({
+    customer: guest,
+    delivery: { method: 'pickup' },
+    payment: 'qr',
+    items: [{ fabricId: 'organic-linen', colorId: 'ol-white', meters }],
+    samples: [],
+  });
+  let managerToken = '';
+
+  it('is off until the owner sets a card, and then refuses orders cleanly', async () => {
+    const cat = await call('GET', '/api/catalog');
+    assert.equal(cat.body.settings.qrPayment, false);
+    const r = await call('POST', '/api/orders', { body: qrOrder() });
+    assert.equal(r.status, 422);
+    assert.equal(r.body.error.code, 'payment_unavailable');
+  });
+
+  it('lets only the owner change the card, with the password and a valid number', async () => {
+    const login = await call('POST', '/api/admin/auth/login', { body: { email: 'manager@matos.test', password: 'manager-pass-1' } });
+    managerToken = login.body.token;
+    const body = { enabled: true, cardNumber: CARD, cardHolder: 'MATOS OWNER', bankName: 'Kapitalbank', payLink: '', holdHours: 24 };
+    const byManager = await call('PUT', '/api/admin/payment', { token: managerToken, body: { ...body, password: 'manager-pass-1' } });
+    assert.equal(byManager.status, 403);
+    const noPassword = await call('PUT', '/api/admin/payment', { token: adminToken, body: { ...body, password: 'wrong-password' } });
+    assert.equal(noPassword.status, 400);
+    const typo = await call('PUT', '/api/admin/payment', { token: adminToken, body: { ...body, cardNumber: '8600 1234 5678 9013', password: ADMIN.password } });
+    assert.equal(typo.status, 422);
+    assert.ok(typo.body.error.fields.cardNumber);
+    const phishing = await call('PUT', '/api/admin/payment', { token: adminToken, body: { ...body, payLink: 'https://payme.uz.evil.example/pay', password: ADMIN.password } });
+    assert.equal(phishing.status, 422);
+    assert.ok(phishing.body.error.fields.payLink);
+    const ok = await call('PUT', '/api/admin/payment', { token: adminToken, body: { ...body, payLink: 'https://payme.uz/fallback/test', password: ADMIN.password } });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.body.receiver.cardNumber, '8600123456789012');
+    const seenByManager = await call('GET', '/api/admin/payment', { token: managerToken });
+    assert.equal(seenByManager.body.receiver.cardNumber, '8600 •••• •••• 9012');
+    const cat = await call('GET', '/api/catalog');
+    assert.equal(cat.body.settings.qrPayment, true);
+    assert.ok(!JSON.stringify(cat.body).includes('8600123456789012'), 'card number must not be in the public catalog');
+  });
+
+  let number = '';
+  let token = '';
+  let orderId = 0;
+
+  it('gives a QR order a one-time pay token and a server-side amount', async () => {
+    const r = await call('POST', '/api/orders', { body: { ...qrOrder(2), totalUZS: 1 } });
+    assert.equal(r.status, 201);
+    const o = r.body.orders[0];
+    assert.equal(o.kind, 'fabric');
+    assert.ok(typeof o.payToken === 'string' && o.payToken.length >= 40);
+    number = o.number;
+    token = o.payToken;
+    const pay = await call('POST', '/api/pay/lookup', { body: { number, token } });
+    assert.equal(pay.status, 200);
+    assert.equal(pay.headers.get('cache-control'), 'no-store');
+    assert.equal(pay.body.pay.totalUZS, o.totalUZS);
+    assert.equal(pay.body.pay.cardNumber, '8600123456789012');
+    assert.equal(pay.body.pay.paymentStatus, 'unpaid');
+    assert.ok(pay.body.pay.payDeadline);
+    assert.ok(!('customerName' in pay.body.pay) && !JSON.stringify(pay.body).includes(guest.name), 'no personal data on the pay page');
+  });
+
+  it('answers the same 404 for a wrong token and an unknown order', async () => {
+    const wrong = await call('POST', '/api/pay/lookup', { body: { number, token: token.slice(0, -2) + 'xx' } });
+    const missing = await call('POST', '/api/pay/lookup', { body: { number: 'MT-999999', token } });
+    const none = await call('POST', '/api/pay/lookup', { body: { number } });
+    for (const r of [wrong, missing, none]) {
+      assert.equal(r.status, 404);
+      assert.equal(r.body.error.code, 'pay_not_found');
+    }
+  });
+
+  it('records “I paid” without marking the order paid', async () => {
+    const r = await call('POST', '/api/pay/claim', { body: { number, token, payerCardLast4: '4321' } });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.pay.paymentStatus, 'claimed');
+    const again = await call('POST', '/api/pay/claim', { body: { number, token } });
+    assert.equal(again.body.pay.paymentStatus, 'claimed');
+    const list = await call('GET', `/api/admin/orders?q=${number}`, { token: adminToken });
+    orderId = list.body.items[0].id;
+    const o = await call('GET', `/api/admin/orders/${orderId}`, { token: adminToken });
+    assert.equal(o.body.order.paymentStatus, 'claimed');
+    assert.equal(o.body.order.qr.payerCardLast4, '4321');
+    assert.equal(o.body.order.qr.payTo, '8600 •••• •••• 9012');
+  });
+
+  it('will not ship an unpaid QR order; staff confirm the money first', async () => {
+    const ship = await call('PATCH', `/api/admin/orders/${orderId}`, { token: managerToken, body: { status: 'shipped' } });
+    assert.equal(ship.status, 409);
+    assert.equal(ship.body.error.code, 'unpaid');
+    const paid = await call('PATCH', `/api/admin/orders/${orderId}`, { token: managerToken, body: { paymentStatus: 'paid' } });
+    assert.equal(paid.status, 200);
+    assert.equal(paid.body.order.paymentStatus, 'paid');
+    assert.equal(paid.body.order.qr.paidBy, 'Menejer');
+    const undoByManager = await call('PATCH', `/api/admin/orders/${orderId}`, { token: managerToken, body: { paymentStatus: 'unpaid' } });
+    assert.equal(undoByManager.status, 403);
+    const shipNow = await call('PATCH', `/api/admin/orders/${orderId}`, { token: managerToken, body: { status: 'shipped' } });
+    assert.equal(shipNow.status, 200);
+    const pay = await call('POST', '/api/pay/lookup', { body: { number, token } });
+    assert.equal(pay.body.pay.paymentStatus, 'paid');
+    assert.equal(pay.body.pay.cardNumber, '', 'nothing left to pay, so the card is no longer shown');
+  });
+
+  it('keeps the card a waiting order was given, even if the owner changes it', async () => {
+    const r = await call('POST', '/api/orders', { body: qrOrder(1) });
+    const o = r.body.orders[0];
+    const NEW_CARD = '8600123456789012'.slice(0, 15);
+    const other = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => `9860${NEW_CARD.slice(4)}${d}`).find((c) => {
+      let sum = 0;
+      for (let i = 0; i < c.length; i++) {
+        let d = Number(c[c.length - 1 - i]);
+        if (i % 2) d = d * 2 > 9 ? d * 2 - 9 : d * 2;
+        sum += d;
+      }
+      return sum % 10 === 0;
+    })!;
+    const change = await call('PUT', '/api/admin/payment', {
+      token: adminToken,
+      body: { enabled: true, cardNumber: other, cardHolder: 'MATOS OWNER', bankName: '', payLink: '', holdHours: 24, password: ADMIN.password },
+    });
+    assert.equal(change.status, 200);
+    const pay = await call('POST', '/api/pay/lookup', { body: { number: o.number, token: o.payToken } });
+    assert.equal(pay.body.pay.cardNumber, '8600123456789012');
+  });
+
+  it('cancels unpaid QR orders after the deadline and puts the metres back', async () => {
+    const before = await call('GET', '/api/catalog');
+    const stock = (b: any) => b.fabrics.find((f: any) => f.id === 'organic-linen').colors.find((c: any) => c.id === 'ol-white').stockM;
+    const r = await call('POST', '/api/orders', { body: qrOrder(1.5) });
+    const o = r.body.orders[0];
+    const mid = await call('GET', '/api/catalog');
+    assert.equal(Math.round((stock(before.body) - stock(mid.body)) * 10) / 10, 1.5);
+    const { expireUnpaidQrOrders } = await import('../src/modules/orders.ts');
+    const n = expireUnpaidQrOrders(app.db, 'http://api.test', new Date(Date.now() + 25 * 3600_000));
+    assert.ok(n >= 1);
+    const after = await call('GET', '/api/catalog');
+    // At least these 1.5 m came back (older unpaid test orders expire in the same sweep).
+    assert.ok(stock(after.body) - stock(mid.body) >= 1.5 - 1e-9);
+    const pay = await call('POST', '/api/pay/lookup', { body: { number: o.number, token: o.payToken } });
+    assert.equal(pay.body.pay.status, 'cancelled');
+    const late = await call('POST', '/api/pay/claim', { body: { number: o.number, token: o.payToken } });
+    assert.equal(late.status, 409);
+  });
+
+  it('lets a signed-in shopper reopen their own payment page without the token', async () => {
+    const reg = await call('POST', '/api/auth/register', { body: { name: 'QR Shopper', phone: '+998 99 765 43 21', password: 'secret-qr-1', verificationToken: await verifiedToken('+998 99 765 43 21') } });
+    const shopper = reg.body.token;
+    const r = await call('POST', '/api/orders', { token: shopper, body: { ...qrOrder(1), customer: { name: 'QR Shopper', phone: '+998 99 765 43 21' } } });
+    const o = r.body.orders[0];
+    const mine = await call('POST', '/api/pay/lookup', { token: shopper, body: { number: o.number } });
+    assert.equal(mine.status, 200);
+    assert.equal(mine.body.pay.number, o.number);
+    const history = await call('GET', '/api/me/orders', { token: shopper });
+    assert.equal(history.body.orders.find((x: any) => x.number === o.number).paymentStatus, 'unpaid');
+    const notMine = await call('POST', '/api/pay/lookup', { token: shopper, body: { number } });
+    assert.equal(notMine.status, 404);
+  });
+});

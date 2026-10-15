@@ -225,4 +225,10 @@ export async function changeAdminPassword(db: Db, id: number, current: string, n
   await setAdminPassword(db, id, next);
 }
 
+/** Re-asks the admin's password before sensitive changes (where payments go). */
+export async function verifyAdminPassword(db: Db, id: number, password: string) {
+  const row = db.get<AdminRow>('SELECT * FROM admins WHERE id = ?', id);
+  if (!row || !(await verifyPassword(password, row.password_hash))) throw new HttpError(400, 'wrong_password', 'Parol noto‘g‘ri');
+}
+
 export const listAdmins = (db: Db) => db.all<AdminRow>('SELECT * FROM admins ORDER BY id').map(adminOut);

@@ -166,7 +166,12 @@ export type OrderKind = 'fabric' | 'sample';
 export type OrderStatus = 'new' | 'confirmed' | 'packed' | 'shipped' | 'delivered' | 'cancelled';
 export type TailorRequestStatus = 'new' | 'contacted' | 'in_progress' | 'done' | 'cancelled';
 export type DeliveryMethod = 'courier' | 'pickup';
-export type PaymentMethod = 'cash' | 'card';
+export type PaymentMethod = 'cash' | 'card' | 'qr';
+/**
+ * Only for `qr` orders. `claimed` means the shopper pressed “I paid” — it is never proof of payment;
+ * only staff (after seeing the money arrive) can set `paid`.
+ */
+export type PaymentStatus = 'unpaid' | 'claimed' | 'paid' | 'refunded';
 
 export interface OrderItemDTO {
   fabricId: string;
@@ -192,6 +197,10 @@ export interface OrderDTO {
   customerPhone: string;
   delivery: { method: DeliveryMethod; city: string | null; address: string | null };
   payment: PaymentMethod | null;
+  /** null unless payment is `qr`. */
+  paymentStatus: PaymentStatus | null;
+  /** Unpaid QR orders are cancelled after this time and their metres go back on sale. */
+  payDeadline: string | null;
   note: string | null;
   subtotalUZS: number;
   deliveryUZS: number;
@@ -212,6 +221,34 @@ export interface AdminOrderDTO extends OrderDTO {
   userId: number | null;
   adminNote: string | null;
   events: OrderEventDTO[];
+  /** QR orders: the card the shopper was told to pay to (masked), and who confirmed the money. */
+  qr: { payTo: string; claimedAt: string | null; payerCardLast4: string | null; paidAt: string | null; paidBy: string | null } | null;
+}
+
+/** Where QR payments go. Kept out of the public catalog; only the owner can change it. */
+export interface PaymentReceiver {
+  enabled: boolean;
+  /** 16 digits, no spaces. */
+  cardNumber: string;
+  cardHolder: string;
+  bankName: string;
+  /** Optional https link to the owner's Payme / Click / Uzum transfer page. */
+  payLink: string;
+  /** Hours an unpaid QR order keeps its metres reserved. */
+  holdHours: number;
+}
+
+/** What the payment page shows. No customer name, phone or address: the link may be shared. */
+export interface PayInfo {
+  number: string;
+  totalUZS: number;
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  payDeadline: string | null;
+  cardNumber: string;
+  cardHolder: string;
+  bankName: string;
+  payLink: string;
 }
 
 export interface TailorRequestDTO {
@@ -246,6 +283,8 @@ export interface StoreSettings {
   pickupAddress: string;
   supportPhone: string;
   maxSamples: number;
+  /** Set by the API in the public catalog when the owner has turned QR card payment on. */
+  qrPayment?: boolean;
 }
 
 export interface CatalogResponse {
@@ -264,7 +303,8 @@ export interface CheckoutInput {
 }
 
 export interface CheckoutResult {
-  orders: { number: string; kind: OrderKind; totalUZS: number }[];
+  /** payToken: only for QR orders, returned once; it opens the order's payment page. */
+  orders: { number: string; kind: OrderKind; totalUZS: number; payToken?: string }[];
 }
 
 export interface AuthResult {

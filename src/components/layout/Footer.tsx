@@ -47,7 +47,11 @@ export function Footer() {
       </div>
       <div className="wrap flex flex-col gap-2 border-t border-line py-6 text-[13px] text-muted sm:flex-row sm:justify-between">
         <span>© 2026 MATOS</span>
-        <span>{t(L('To‘lov mato qo‘lingizga yetgach — naqd yoki karta orqali.', 'Оплата при получении — наличными или картой.', 'Pay on delivery — cash or card.'))}</span>
+        <span>
+          {settings.qrPayment
+            ? t(L('To‘lov: oldindan QR / karta raqami orqali yoki mato qo‘lingizga yetgach.', 'Оплата: заранее по QR / номеру карты или при получении.', 'Pay in advance by QR / card number, or on delivery.'))
+            : t(L('To‘lov mato qo‘lingizga yetgach — naqd yoki karta orqali.', 'Оплата при получении — наличными или картой.', 'Pay on delivery — cash or card.'))}
+        </span>
       </div>
     </footer>
   );

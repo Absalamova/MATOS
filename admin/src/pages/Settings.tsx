@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Trash2, UserPlus } from 'lucide-react';
-import type { AdminUser, StoreSettings } from '../../../shared/types';
+import type { AdminUser, PaymentReceiver, StoreSettings } from '../../../shared/types';
+import { cardDigits, formatCard, isAllowedPayLink, isCardNumber, MAX_HOLD_HOURS, MIN_HOLD_HOURS } from '../../../shared/payment';
 import { displayPhone, formatPhoneInput, normalizePhone } from '../../../shared/phone';
 import { api, ApiError, API_URL, errorMessage, STORE_URL } from '../api';
 import { useAuth } from '../auth';
@@ -13,7 +14,10 @@ export function Settings() {
     <>
       <PageHeader title="Sozlamalar" />
       <div className="grid gap-5 xl:grid-cols-2">
-        <StoreSettingsCard />
+        <div className="space-y-5">
+          <StoreSettingsCard />
+          <PaymentCard />
+        </div>
         <div className="space-y-5">
           <PasswordCard />
           {admin?.role === 'owner' && <StaffCard />}
@@ -263,5 +267,115 @@ function StaffCard() {
         </div>
       </Overlay>
     </section>
+  );
+}
+
+/**
+ * Where QR payments go. Everyone sees it; only the owner can change it, and only with their password,
+ * because whoever controls this card number controls where customers send money.
+ */
+function PaymentCard() {
+  const { admin } = useAuth();
+  const { toast } = useUi();
+  const owner = admin?.role === 'owner';
+  const [r, setR] = useState<(PaymentReceiver & { ready: boolean }) | null>(null);
+  const [f, setF] = useState<PaymentReceiver | null>(null);
+  const [password, setPassword] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api
+      .paymentReceiver()
+      .then((x) => {
+        setR(x);
+        setF({ enabled: x.enabled, cardNumber: x.cardNumber, cardHolder: x.cardHolder, bankName: x.bankName, payLink: x.payLink, holdHours: x.holdHours });
+      })
+      .catch(setError);
+  }, []);
+
+  if (error) return <ErrorBox error={error} />;
+  if (!r || !f) return <div className="card"><Skeleton rows={5} /></div>;
+
+  const dirty = owner && JSON.stringify(f) !== JSON.stringify({ enabled: r.enabled, cardNumber: r.cardNumber, cardHolder: r.cardHolder, bankName: r.bankName, payLink: r.payLink, holdHours: r.holdHours });
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const local: Record<string, string> = {};
+    if (f.cardNumber && !isCardNumber(f.cardNumber)) local.cardNumber = 'Raqam noto‘g‘ri — 16 ta raqamni qayta tekshiring';
+    if (f.enabled && !f.cardNumber) local.cardNumber = 'Karta raqamini kiriting';
+    if (f.enabled && f.cardHolder.trim().length < 3) local.cardHolder = 'Kartadagi ism-familiya';
+    if (f.payLink && !isAllowedPayLink(f.payLink)) local.payLink = 'Faqat https://…payme.uz, click.uz yoki uzumbank.uz';
+    if (!password) local.password = 'Saqlash uchun parolingizni kiriting';
+    setErrors(local);
+    if (Object.keys(local).length) return;
+    setBusy(true);
+    try {
+      const x = await api.savePaymentReceiver({ ...f, cardNumber: cardDigits(f.cardNumber), password });
+      setR(x);
+      setF({ enabled: x.enabled, cardNumber: x.cardNumber, cardHolder: x.cardHolder, bankName: x.bankName, payLink: x.payLink, holdHours: x.holdHours });
+      setPassword('');
+      toast(x.enabled ? 'Saqlandi — saytda QR orqali to‘lov yoqildi' : 'Saqlandi — QR orqali to‘lov o‘chiq');
+    } catch (ex) {
+      if (ex instanceof ApiError && ex.fields) setErrors(ex.fields);
+      else if (ex instanceof ApiError && ex.code === 'wrong_password') setErrors({ password: 'Parol noto‘g‘ri' });
+      toast(errorMessage(ex), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form className="card space-y-4 p-5" onSubmit={save}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="font-sans text-[15px] font-semibold">QR orqali to‘lov</h2>
+          <p className="mt-1 text-[13px] text-graphite">Mijoz buyurtmadan keyin QR / karta raqamini ko‘rib, o‘z ilovasidan pul o‘tkazadi. Buyurtma siz pul tushganini ko‘rib tasdiqlaganingizdan keyingina “to‘langan” bo‘ladi.</p>
+        </div>
+        <span className={`shrink-0 rounded-md px-2 py-1 text-[12px] font-medium ${r.ready ? 'bg-ok-soft text-ok' : 'bg-well text-graphite'}`}>{r.ready ? 'Saytda yoqilgan' : 'O‘chiq'}</span>
+      </div>
+      {!owner && <p className="rounded-lg bg-mist p-3 text-[13px] text-graphite">Kartani faqat do‘kon egasi o‘zgartira oladi.</p>}
+      <fieldset disabled={!owner || busy} className="space-y-4">
+        <label className="flex items-center gap-2 text-[14px]">
+          <input type="checkbox" checked={f.enabled} onChange={(e) => setF({ ...f, enabled: e.target.checked })} />
+          Saytda QR orqali to‘lovni taklif qilish
+        </label>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Karta raqami" error={errors.cardNumber} hint="Uzcard, Humo, Visa yoki Mastercard — 16 raqam">
+            <input
+              className="field tabular tracking-[0.04em]"
+              inputMode="numeric"
+              autoComplete="off"
+              value={owner ? formatCard(f.cardNumber) : f.cardNumber}
+              onChange={(e) => setF({ ...f, cardNumber: cardDigits(e.target.value).slice(0, 16) })}
+              placeholder="8600 0000 0000 0000"
+            />
+          </Field>
+          <Field label="Karta egasi (kartadagidek)" error={errors.cardHolder} hint="Mijoz o‘tkazishda shu ismni ko‘radi">
+            <input className="field" value={f.cardHolder} onChange={(e) => setF({ ...f, cardHolder: e.target.value })} maxLength={80} placeholder="ALIYEVA MALIKA" />
+          </Field>
+          <Field label="Bank (ixtiyoriy)" error={errors.bankName}>
+            <input className="field" value={f.bankName} onChange={(e) => setF({ ...f, bankName: e.target.value })} maxLength={60} placeholder="Kapitalbank" />
+          </Field>
+          <Field label="To‘lov muddati, soat" error={errors.holdHours} hint="Shu vaqtda to‘lanmasa, buyurtma bekor bo‘lib, mato sotuvga qaytadi">
+            <input className="field tabular" type="number" min={MIN_HOLD_HOURS} max={MAX_HOLD_HOURS} value={f.holdHours} onChange={(e) => setF({ ...f, holdHours: Math.min(MAX_HOLD_HOURS, Math.max(MIN_HOLD_HOURS, Math.round(Number(e.target.value) || MIN_HOLD_HOURS))) })} />
+          </Field>
+        </div>
+        <Field label="Payme / Click / Uzum havolasi (ixtiyoriy)" error={errors.payLink} hint="Bo‘lsa, mijozga “ilovada ochish” tugmasi chiqadi. Faqat payme.uz, click.uz, uzumbank.uz">
+          <input className="field" type="url" value={f.payLink} onChange={(e) => setF({ ...f, payLink: e.target.value.trim() })} maxLength={300} placeholder="https://payme.uz/…" />
+        </Field>
+        {owner && (
+          <Field label="Parolingiz (tasdiqlash uchun)" error={errors.password} hint="Karta o‘zgarsa, Telegram guruhiga ogohlantirish boradi">
+            <input className="field" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </Field>
+        )}
+      </fieldset>
+      {owner && (
+        <button type="submit" className="btn btn-primary" disabled={busy || !dirty}>
+          {busy ? 'Saqlanmoqda…' : 'Saqlash'}
+        </button>
+      )}
+    </form>
   );
 }

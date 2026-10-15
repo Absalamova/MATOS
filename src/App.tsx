@@ -14,6 +14,7 @@ import { HomePage } from './pages/HomePage';
 const CatalogPage = lazy(() => import('./pages/CatalogPage').then((m) => ({ default: m.CatalogPage })));
 const ProductPage = lazy(() => import('./pages/ProductPage').then((m) => ({ default: m.ProductPage })));
 const StudioPage = lazy(() => import('./pages/StudioPage').then((m) => ({ default: m.StudioPage })));
+const PayPage = lazy(() => import('./pages/PayPage').then((m) => ({ default: m.PayPage })));
 const TailorsPage = lazy(() => import('./pages/TailorsPage').then((m) => ({ default: m.TailorsPage })));
 const VisualSearchModal = lazy(() => import('./components/VisualSearchModal').then((m) => ({ default: m.VisualSearchModal })));
 const StyleAdvisorModal = lazy(() => import('./components/StyleAdvisorModal').then((m) => ({ default: m.StyleAdvisorModal })));
@@ -53,6 +54,8 @@ function Shell() {
           ? t(UI.studio)
           : route.name === 'tailors'
             ? t(UI.tailors)
+            : route.name === 'pay'
+              ? t(L('To‘lov', 'Оплата', 'Payment'))
             : f
               ? t(f.name)
               : t(L('mato, namuna, 3D va tikuvchi', 'ткань, образцы, 3D и портные', 'fabric, samples, 3D and tailors'));
@@ -76,6 +79,9 @@ function Shell() {
       break;
     case 'tailors':
       page = <TailorsPage key={route.query.get('book') ?? ''} route={route} />;
+      break;
+    case 'pay':
+      page = <PayPage route={route} />;
       break;
     default:
       page = <HomePage route={route} />;

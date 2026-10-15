@@ -6,6 +6,7 @@ import { clampMeasurements, MEASURE_LIMITS, sizeFor } from '../lib/measure';
 import { errorText, fetchHistory } from '../lib/api';
 import { findGarment } from '../data/garments';
 import { ORDER_STATUS_CUSTOMER, TAILOR_REQUEST_LABEL } from '../../shared/status';
+import { PAYMENT_STATUS_LABEL } from '../../shared/payment';
 import { Dialog } from './ui/Dialog';
 import type { BodyMeasurements, MyHistory } from '../types';
 import { href } from '../lib/router';
@@ -111,6 +112,18 @@ export function ProfileModal() {
                       {formatDate(o.createdAt, lang)}
                       {o.kind === 'fabric' ? ` · ${formatMoney(o.totalUZS, 'UZS', lang)}` : ''}
                     </p>
+                    {o.paymentStatus && o.status !== 'cancelled' && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px]">
+                        <span className={`rounded-full px-2.5 py-0.5 ${o.paymentStatus === 'paid' ? 'bg-ok/10 text-ok' : o.paymentStatus === 'unpaid' ? 'bg-tape-soft' : 'bg-mist'}`}>
+                          {t(PAYMENT_STATUS_LABEL[o.paymentStatus])}
+                        </span>
+                        {o.paymentStatus === 'unpaid' && (
+                          <a className="font-medium underline underline-offset-4" href={href('pay', { id: o.number })} onClick={close}>
+                            {t(L('To‘lash', 'Оплатить', 'Pay now'))}
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </li>
                 ))}
                 {history.tailorRequests.map((r) => (

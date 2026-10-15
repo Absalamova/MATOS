@@ -9,6 +9,9 @@ import type {
   OrderItemDTO,
   OrderKind,
   OrderStatus,
+  AdminRole,
+  PaymentReceiver,
+  PaymentStatus,
   StoreSettings,
 } from '../../../shared/types.ts';
 import { deliveryFeeUZS, MAX_ITEM_METERS, MIN_ITEM_METERS, round2 } from '../../../shared/pricing.ts';
@@ -19,6 +22,8 @@ import { conflict, HttpError, invalid, notFound } from '../lib/errors.ts';
 import { v, type Infer } from '../lib/validate.ts';
 import { escapeHtml, type Notifier } from '../lib/telegram.ts';
 import { bumpCatalog } from './revision.ts';
+import { assertPaymentTransition, startPayment } from './payments.ts';
+import { maskCard, PAYMENT_STATUS_ADMIN } from '../../../shared/payment.ts';
 
 interface OrderRow {
   id: number;
@@ -31,7 +36,14 @@ interface OrderRow {
   delivery_method: 'courier' | 'pickup';
   city: string | null;
   address: string | null;
-  payment_method: 'cash' | 'card' | null;
+  payment_method: 'cash' | 'card' | 'qr' | null;
+  payment_status: PaymentStatus | null;
+  pay_to: string | null;
+  pay_deadline: string | null;
+  payer_card_last4: string | null;
+  payment_claimed_at: string | null;
+  paid_at: string | null;
+  paid_by: string | null;
   note: string | null;
   subtotal_uzs: number;
   delivery_uzs: number;
@@ -65,7 +77,7 @@ export const checkoutSchema = v.object({
     city: v.string({ max: 60 }).optional(),
     address: v.string({ max: 300 }).optional(),
   }),
-  payment: v.enum(['cash', 'card'] as const).default('cash'),
+  payment: v.enum(['cash', 'card', 'qr'] as const).default('cash'),
   note: v.string({ max: 600 }).optional(),
   items: v
     .array(
@@ -119,6 +131,8 @@ function orderOut(o: OrderRow, items: OrderItemDTO[]): OrderDTO {
     customerPhone: o.customer_phone,
     delivery: { method: o.delivery_method, city: o.city, address: o.address },
     payment: o.payment_method,
+    paymentStatus: o.payment_method === 'qr' ? o.payment_status : null,
+    payDeadline: o.payment_method === 'qr' && o.payment_status === 'unpaid' ? o.pay_deadline : null,
     note: o.note,
     subtotalUZS: o.subtotal_uzs,
     deliveryUZS: o.delivery_uzs,
@@ -140,7 +154,17 @@ function adminOrderOut(db: Db, row: OrderRow, publicUrl: string): AdminOrderDTO 
     'SELECT status, note, actor, created_at FROM order_events WHERE order_id = ? ORDER BY id',
     row.id,
   );
-  return { ...base, userId: row.user_id, adminNote: row.admin_note, events: events.map((e) => ({ status: e.status, note: e.note, actor: e.actor, createdAt: e.created_at })) };
+  const qr =
+    row.payment_method === 'qr'
+      ? {
+          payTo: maskCard(json<{ cardNumber?: string }>(row.pay_to, {}).cardNumber ?? ''),
+          claimedAt: row.payment_claimed_at,
+          payerCardLast4: row.payer_card_last4,
+          paidAt: row.paid_at,
+          paidBy: row.paid_by,
+        }
+      : null;
+  return { ...base, userId: row.user_id, adminNote: row.admin_note, events: events.map((e) => ({ status: e.status, note: e.note, actor: e.actor, createdAt: e.created_at })), qr };
 }
 
 interface ColorJoin {
@@ -171,6 +195,7 @@ const mainPhoto = (photos: string | null) => json<{ swatch?: string } | null>(ph
 export interface CheckoutDeps {
   db: Db;
   settings: StoreSettings;
+  receiver: PaymentReceiver;
   notifier: Notifier;
   adminUrl: string;
 }
@@ -200,6 +225,8 @@ export function checkout(deps: CheckoutDeps, input: CheckoutPayload, userId: num
 
   if (!merged.size && !samples.length) throw new HttpError(422, 'empty_order', 'Savat bo‘sh');
   if (samples.length > settings.maxSamples) throw invalid({ samples: `Bir buyurtmada ${settings.maxSamples} tagacha bepul namuna` });
+  // Checked before anything is written: no order is created when QR payment can't be offered.
+  const qr = merged.size && input.payment === 'qr' ? startPayment(deps.receiver) : null;
   if (input.delivery.method === 'courier') {
     const f: Record<string, string> = {};
     if (!input.delivery.city) f['delivery.city'] = 'Shaharni tanlang';
@@ -247,7 +274,18 @@ export function checkout(deps: CheckoutDeps, input: CheckoutPayload, userId: num
         now,
       );
       db.run("INSERT INTO order_events (order_id, status, note, actor, created_at) VALUES (?, 'new', NULL, 'Mijoz', ?)", r.lastId, now);
-      created.push({ number, kind, totalUZS: subtotal + delivery });
+      if (kind === 'fabric' && qr) {
+        db.run(
+          "UPDATE orders SET payment_status = 'unpaid', pay_token_hash = ?, pay_to = ?, pay_deadline = ? WHERE id = ?",
+          qr.tokenHash,
+          qr.payTo,
+          qr.deadline,
+          r.lastId,
+        );
+        created.push({ number, kind, totalUZS: subtotal + delivery, payToken: qr.token });
+      } else {
+        created.push({ number, kind, totalUZS: subtotal + delivery });
+      }
       return r.lastId;
     };
 
@@ -325,6 +363,7 @@ function notifyNewOrders(deps: CheckoutDeps, result: CheckoutResult) {
         `${escapeHtml(row.customer_name)}, ${displayPhone(row.customer_phone)}`,
         ...lines,
         row.kind === 'fabric' ? `Jami: <b>${money(row.total_uzs)}</b>` : '',
+        row.payment_method === 'qr' ? '💳 To‘lov: QR orqali kartaga (pul tushganini tekshirib, paneldan tasdiqlang)' : '',
         where,
         row.note ? `Izoh: ${escapeHtml(row.note)}` : '',
         `${deps.adminUrl}/#/${row.kind === 'fabric' ? 'orders' : 'samples'}/${row.id}`,
@@ -401,12 +440,47 @@ export function getAdminOrder(db: Db, id: number, publicUrl: string) {
  * Status changes are logged as events. Cancelling a fabric order returns its metres to stock;
  * reopening a cancelled one takes them again (and fails if they are gone).
  */
-export function updateOrder(db: Db, id: number, patch: { status?: OrderStatus; adminNote?: string | null; note?: string }, actor: string, publicUrl: string) {
+export function updateOrder(
+  db: Db,
+  id: number,
+  patch: { status?: OrderStatus; adminNote?: string | null; note?: string; paymentStatus?: PaymentStatus },
+  actor: string,
+  publicUrl: string,
+  role: AdminRole = 'manager',
+) {
   return db.tx(() => {
     const row = db.get<OrderRow>('SELECT * FROM orders WHERE id = ?', id);
     if (!row) throw notFound('Buyurtma topilmadi');
     const now = nowIso();
+    if (patch.paymentStatus && row.payment_method === 'qr' && patch.paymentStatus !== row.payment_status) {
+      const from = row.payment_status ?? 'unpaid';
+      assertPaymentTransition(from, patch.paymentStatus, patch.status ?? row.status, role);
+      const paid = patch.paymentStatus === 'paid';
+      db.run(
+        'UPDATE orders SET payment_status = ?, paid_at = ?, paid_by = ?, updated_at = ? WHERE id = ?',
+        patch.paymentStatus,
+        paid ? now : patch.paymentStatus === 'refunded' ? row.paid_at : null,
+        paid ? actor : patch.paymentStatus === 'refunded' ? row.paid_by : null,
+        now,
+        id,
+      );
+      db.run(
+        'INSERT INTO order_events (order_id, status, note, actor, created_at) VALUES (?, ?, ?, ?, ?)',
+        id,
+        row.status,
+        `To‘lov: ${PAYMENT_STATUS_ADMIN[patch.paymentStatus]}`,
+        actor,
+        now,
+      );
+      row.payment_status = patch.paymentStatus;
+    } else if (patch.paymentStatus && row.payment_method !== 'qr') {
+      throw conflict('Bu buyurtma QR orqali to‘lanmaydi', 'payment_transition');
+    }
     if (patch.status && patch.status !== row.status) {
+      // Goods leave the shop only after a QR payment is confirmed.
+      if (row.payment_method === 'qr' && row.payment_status !== 'paid' && (patch.status === 'shipped' || patch.status === 'delivered')) {
+        throw conflict('Avval to‘lovni tasdiqlang: pul kartaga tushmaguncha buyurtma jo‘natilmaydi.', 'unpaid');
+      }
       if (!orderStatusesFor(row.kind).includes(patch.status)) {
         throw invalid({ status: `“${ORDER_STATUS_LABEL[patch.status].uz}” holati bu turdagi buyurtmaga mos emas` });
       }
@@ -455,7 +529,13 @@ export function exportOrdersCsv(db: Db, q: Omit<OrderQuery, 'page' | 'pageSize'>
       r.delivery_method === 'pickup' ? 'Olib ketish' : 'Kuryer',
       r.city ?? '',
       r.address ?? '',
-      r.payment_method === 'card' ? 'Karta' : r.payment_method === 'cash' ? 'Naqd' : '',
+      r.payment_method === 'qr'
+        ? `QR, kartaga — ${PAYMENT_STATUS_ADMIN[r.payment_status ?? 'unpaid']}`
+        : r.payment_method === 'card'
+          ? 'Karta'
+          : r.payment_method === 'cash'
+            ? 'Naqd'
+            : '',
       (items.get(r.id) ?? []).map((i) => `${i.fabricName.uz}, ${i.colorName.uz}${i.meters ? ` × ${i.meters} m` : ''}`).join('; '),
       r.subtotal_uzs,
       r.delivery_uzs,
@@ -466,4 +546,17 @@ export function exportOrdersCsv(db: Db, q: Omit<OrderQuery, 'page' | 'pageSize'>
       .join(','),
   );
   return '﻿' + [header.map(csvCell).join(','), ...lines].join('\r\n');
+}
+
+/**
+ * Unpaid QR orders hold their metres only until the deadline. After that they are cancelled
+ * (which returns the stock). Orders where the shopper said “I paid” are left for staff to check.
+ */
+export function expireUnpaidQrOrders(db: Db, publicUrl: string, now = new Date()) {
+  const due = db.all<{ id: number }>(
+    "SELECT id FROM orders WHERE payment_method = 'qr' AND payment_status = 'unpaid' AND status = 'new' AND pay_deadline <= ?",
+    now.toISOString(),
+  );
+  for (const o of due) updateOrder(db, o.id, { status: 'cancelled', note: 'To‘lov muddati o‘tdi' }, 'Tizim', publicUrl);
+  return due.length;
 }

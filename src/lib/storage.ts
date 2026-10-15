@@ -8,6 +8,8 @@ export const KEYS = {
   measurements: 'matos_measurements',
   catalogCache: 'matos_catalog_cache',
   tailorsCache: 'matos_tailors_cache',
+  /** order number → pay token for QR orders placed in this browser, so the payment page can be reopened. */
+  payTokens: 'matos_pay_tokens',
 } as const;
 
 /** Keys from the old browser-only demo (it even kept passwords here). Removed on first load. */

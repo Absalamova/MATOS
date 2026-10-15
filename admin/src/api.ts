@@ -13,6 +13,7 @@ import type {
   OrderKind,
   OrderStatus,
   Paged,
+  PaymentReceiver,
   StoreSettings,
   TailorRequestStatus,
   TailorStatus,
@@ -119,7 +120,7 @@ export const api = {
 
   orders: (kind: OrderKind, q: ListQuery, signal?: AbortSignal) => json<Paged<OrderDTO>>(`/api/admin/orders${qs({ kind, ...q })}`, { signal }),
   order: (id: number) => json<{ order: AdminOrderDTO }>(`/api/admin/orders/${id}`).then((r) => r.order),
-  updateOrder: (id: number, patch: { status?: OrderStatus; adminNote?: string | null; note?: string }) =>
+  updateOrder: (id: number, patch: { status?: OrderStatus; paymentStatus?: 'unpaid' | 'paid' | 'refunded'; adminNote?: string | null; note?: string }) =>
     json<{ order: AdminOrderDTO }>(`/api/admin/orders/${id}`, { method: 'PATCH', body: patch }).then((r) => r.order),
   exportOrders: async (kind: OrderKind, q: ListQuery) => {
     const res = await request(`/api/admin/orders/export${qs({ kind, status: q.status, q: q.q })}`);
@@ -153,6 +154,9 @@ export const api = {
     json<{ customer: AdminCustomer }>(`/api/admin/customers/${id}`, { method: 'PATCH', body: { status } }).then((r) => r.customer),
 
   settings: () => json<{ settings: StoreSettings }>('/api/admin/settings').then((r) => r.settings),
+  paymentReceiver: () => json<{ receiver: PaymentReceiver & { ready: boolean } }>('/api/admin/payment').then((r) => r.receiver),
+  savePaymentReceiver: (body: PaymentReceiver & { password: string }) =>
+    json<{ receiver: PaymentReceiver & { ready: boolean } }>('/api/admin/payment', { method: 'PUT', body }).then((r) => r.receiver),
   saveSettings: (s: StoreSettings) => json<{ settings: StoreSettings }>('/api/admin/settings', { method: 'PUT', body: s }).then((r) => r.settings),
 
   staff: () => json<{ staff: AdminUser[] }>('/api/admin/staff').then((r) => r.staff),

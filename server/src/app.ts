@@ -16,6 +16,7 @@ import { seedFabrics } from './modules/catalog.ts';
 import { seedTailors } from './modules/tailors.ts';
 import { createAdmin } from './modules/auth.ts';
 import { saveSettings } from './modules/settings.ts';
+import { expireUnpaidQrOrders } from './modules/orders.ts';
 import { SEED_FABRICS } from '../../shared/catalog.ts';
 import { SEED_TAILORS } from '../../shared/tailors.ts';
 import { DEFAULT_SETTINGS } from '../../shared/pricing.ts';
@@ -114,6 +115,19 @@ export async function startServer(overrides: Partial<Config> = {}, opts: { quiet
   const host = addr.family === 'IPv6' ? `[${addr.address}]` : addr.address;
   const url = config.port === 0 ? `http://${host}:${addr.port}` : config.publicUrl;
 
+  // Unpaid QR orders past their deadline go back on sale; checked every few minutes.
+  const expirePayments = () => {
+    try {
+      const n = expireUnpaidQrOrders(db, config.publicUrl);
+      if (n) log.info(`To‘lanmagan ${n} ta QR buyurtma bekor qilindi (muddat o‘tdi)`);
+    } catch (err) {
+      log.warn('QR to‘lov muddatini tekshirib bo‘lmadi', { err: String(err) });
+    }
+  };
+  expirePayments();
+  const paySweep = setInterval(expirePayments, 5 * 60_000);
+  paySweep.unref();
+
   // Housekeeping: expired sessions and old idempotency keys.
   const sweep = setInterval(() => {
     try {
@@ -129,6 +143,7 @@ export async function startServer(overrides: Partial<Config> = {}, opts: { quiet
   const close = () =>
     new Promise<void>((resolve) => {
       clearInterval(sweep);
+      clearInterval(paySweep);
       rateLimit.stop();
       server.close(() => {
         db.close();

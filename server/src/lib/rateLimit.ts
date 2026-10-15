@@ -16,6 +16,10 @@ const RULES: Rule[] = [
   { method: 'POST', path: '/api/auth/phone/verify', limit: 20, windowSec: 600 },
   { method: 'POST', path: '/api/admin/auth/login', limit: 8, windowSec: 600 },
   { method: 'POST', path: '/api/orders', limit: 12, windowSec: 600 },
+  // Pay tokens are 256-bit, so guessing is hopeless anyway; these just keep scripts off the endpoints.
+  { method: 'POST', path: '/api/pay/lookup', limit: 60, windowSec: 600 },
+  { method: 'POST', path: '/api/pay/claim', limit: 10, windowSec: 600 },
+  { method: 'PUT', path: '/api/admin/payment', limit: 5, windowSec: 600 },
   { method: 'POST', path: '/api/tailor-requests', limit: 10, windowSec: 1800 },
   { method: 'POST', path: '/api/tailors/apply', limit: 4, windowSec: 3600 },
 ];

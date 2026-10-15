@@ -289,6 +289,18 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_phone_codes_phone ON phone_codes (phone, purpose, created_at);
   `,
+  /* 3 — QR card payments. pay_to is a snapshot of the receiver shown to the shopper, so a later change of card
+         never silently redirects an order that is already waiting for money. */ `
+  ALTER TABLE orders ADD COLUMN payment_status TEXT CHECK (payment_status IN ('unpaid', 'claimed', 'paid', 'refunded'));
+  ALTER TABLE orders ADD COLUMN pay_token_hash TEXT;
+  ALTER TABLE orders ADD COLUMN pay_to TEXT;
+  ALTER TABLE orders ADD COLUMN pay_deadline TEXT;
+  ALTER TABLE orders ADD COLUMN payer_card_last4 TEXT;
+  ALTER TABLE orders ADD COLUMN payment_claimed_at TEXT;
+  ALTER TABLE orders ADD COLUMN paid_at TEXT;
+  ALTER TABLE orders ADD COLUMN paid_by TEXT;
+  CREATE INDEX idx_orders_pay_deadline ON orders (payment_status, pay_deadline);
+  `,
 ];
 
 export function migrate(db: Db) {

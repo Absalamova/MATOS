@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
-import type { OrderStatus, TailorRequestStatus, TailorStatus } from '../../shared/types';
+import type { OrderStatus, PaymentStatus, TailorRequestStatus, TailorStatus } from '../../shared/types';
 import { ORDER_STATUS_LABEL, TAILOR_REQUEST_LABEL, TAILOR_STATUS_LABEL } from '../../shared/status';
 
 /* ───────────── Overlay (modal / drawer) ───────────── */
@@ -202,6 +202,10 @@ export const Badge = ({ tone = 'muted', children }: { tone?: keyof typeof TONES;
 
 const ORDER_TONE: Record<OrderStatus, keyof typeof TONES> = { new: 'tape', confirmed: 'info', packed: 'info', shipped: 'plum', delivered: 'ok', cancelled: 'muted' };
 export const OrderBadge = ({ status }: { status: OrderStatus }) => <Badge tone={ORDER_TONE[status]}>{ORDER_STATUS_LABEL[status].uz}</Badge>;
+
+const PAY_TONE: Record<PaymentStatus, keyof typeof TONES> = { unpaid: 'muted', claimed: 'danger', paid: 'ok', refunded: 'plum' };
+const PAY_SHORT: Record<PaymentStatus, string> = { unpaid: 'QR: to‘lanmagan', claimed: 'QR: tekshiring', paid: 'QR: to‘langan', refunded: 'QR: qaytarilgan' };
+export const PaymentBadge = ({ status }: { status: PaymentStatus | null }) => (status ? <Badge tone={PAY_TONE[status]}>{PAY_SHORT[status]}</Badge> : null);
 
 const TREQ_TONE: Record<TailorRequestStatus, keyof typeof TONES> = { new: 'tape', contacted: 'info', in_progress: 'plum', done: 'ok', cancelled: 'muted' };
 export const TailorRequestBadge = ({ status }: { status: TailorRequestStatus }) => <Badge tone={TREQ_TONE[status]}>{TAILOR_REQUEST_LABEL[status].uz}</Badge>;

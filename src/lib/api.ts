@@ -126,6 +126,12 @@ export function errorText(err: unknown, t: T): string {
       return t(L('Kod eskirgan yoki urinishlar tugagan. Yangi kod so‘rang.', 'Код устарел или попытки закончились. Запросите новый.', 'The code expired or you ran out of attempts. Request a new one.'));
     case 'verification_invalid':
       return t(L('Telefon tasdig‘i muddati o‘tdi. Raqamni qayta tasdiqlang.', 'Подтверждение номера истекло. Подтвердите номер снова.', 'Phone confirmation expired. Please confirm your number again.'));
+    case 'payment_unavailable':
+      return t(L('QR orqali to‘lov hozir ishlamayapti. Naqd yoki karta bilan qabulda to‘lashni tanlang.', 'Оплата по QR сейчас недоступна. Выберите оплату при получении.', 'QR payment is unavailable right now. Choose pay on delivery.'));
+    case 'pay_not_found':
+      return t(L('To‘lov havolasi noto‘g‘ri yoki eskirgan. Profilingizdan yoki operator orqali oching.', 'Ссылка на оплату неверна или устарела. Откройте её из профиля или через оператора.', 'This payment link is wrong or out of date. Open it from your profile or ask us.'));
+    case 'order_cancelled':
+      return t(L('Buyurtma bekor qilingan. Pul o‘tkazgan bo‘lsangiz, biz bilan bog‘laning.', 'Заказ отменён. Если вы уже перевели деньги, свяжитесь с нами.', 'This order was cancelled. If you already sent money, please contact us.'));
     case 'validation':
       return t(L('Maydonlarni tekshiring.', 'Проверьте поля формы.', 'Check the highlighted fields.'));
     default:

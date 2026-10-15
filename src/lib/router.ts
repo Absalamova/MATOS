@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-export type RouteName = 'home' | 'catalog' | 'fabric' | 'studio' | 'tailors';
+export type RouteName = 'home' | 'catalog' | 'fabric' | 'studio' | 'tailors' | 'pay';
 
 export interface Route {
   name: RouteName;
@@ -22,13 +22,15 @@ export function parseHash(hash: string): Route {
       return { name: 'studio', query };
     case 'tailors':
       return { name: 'tailors', query };
+    case 'pay':
+      return { name: 'pay', id: parts[1], query };
     default:
       return { name: 'home', query };
   }
 }
 
 export function href(name: RouteName, opts: { id?: string; query?: Record<string, string | undefined> } = {}) {
-  const path = name === 'home' ? '' : name === 'fabric' ? `fabric/${opts.id}` : name;
+  const path = name === 'home' ? '' : name === 'fabric' || name === 'pay' ? `${name}/${opts.id}` : name;
   const q = new URLSearchParams();
   Object.entries(opts.query || {}).forEach(([k, v]) => v && q.set(k, v));
   const qs = q.toString();

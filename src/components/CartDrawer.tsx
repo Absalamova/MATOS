@@ -9,9 +9,11 @@ import { CITIES } from '../data/tailors';
 import { href } from '../lib/router';
 import { ApiError, errorText, newIdempotencyKey, placeOrder } from '../lib/api';
 import { deliveryFeeUZS, fromUZS } from '../../shared/pricing';
-import type { CheckoutResult } from '../types';
+import type { CheckoutResult, PaymentMethod } from '../types';
 import { Dialog } from './ui/Dialog';
 import { ColorChip, FabricImage } from './ui/FabricImage';
+import { PaymentPanel } from './PaymentPanel';
+import { rememberPayToken } from '../lib/pay';
 
 type Step = 'bag' | 'checkout' | 'done';
 
@@ -19,7 +21,7 @@ export function CartDrawer() {
   const app = useApp();
   const { t, lang, currency, unit, overlay, close, cart, samples, fabricById, setCartMeters, removeFromCart, toggleSample, clearCart, clearSamples, user, open, settings, maxSamples, refreshCatalog } = app;
   const [step, setStep] = useState<Step>('bag');
-  const [form, setForm] = useState({ name: '', phone: '+998 ', city: 'Toshkent', address: '', note: '', delivery: 'courier' as 'courier' | 'pickup', payment: 'cash' as 'cash' | 'card' });
+  const [form, setForm] = useState({ name: '', phone: '+998 ', city: 'Toshkent', address: '', note: '', delivery: 'courier' as 'courier' | 'pickup', payment: 'cash' as PaymentMethod });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -78,6 +80,10 @@ export function CartDrawer() {
     setStep('checkout');
   };
 
+  // QR card payment is offered only while the owner has it switched on.
+  const paymentOptions: PaymentMethod[] = settings.qrPayment ? ['qr', 'cash', 'card'] : ['cash', 'card'];
+  const payment: PaymentMethod = paymentOptions.includes(form.payment) ? form.payment : 'cash';
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (busy) return;
@@ -94,13 +100,14 @@ export function CartDrawer() {
         {
           customer: { name: form.name.trim(), phone: normalizePhone(form.phone)! },
           delivery: form.delivery === 'courier' ? { method: 'courier', city: form.city, address: form.address.trim() } : { method: 'pickup' },
-          payment: form.payment,
+          payment,
           note: form.note.trim() || undefined,
           items: lines.map((l) => ({ fabricId: l.fabric.id, colorId: l.color.id, meters: l.item.meters, garmentKey: l.item.garmentKey })),
           samples: sampleLines.map((x) => ({ fabricId: x.fabric.id, colorId: x.color.id })),
         },
         idemKey,
       );
+      for (const o of result.orders) if (o.payToken) rememberPayToken(o.number, o.payToken);
       setDone({ result, phone: displayPhone(normalizePhone(form.phone)!) });
       clearCart();
       clearSamples();
@@ -326,10 +333,31 @@ export function CartDrawer() {
           {lines.length > 0 && (
             <fieldset>
               <legend className="label">{t(L('To‘lov', 'Оплата', 'Payment'))}</legend>
-              <div className="grid grid-cols-2 gap-2">
-                {(['cash', 'card'] as const).map((p) => (
-                  <button key={p} type="button" className="chip h-11 justify-center" aria-pressed={form.payment === p} onClick={() => setForm({ ...form, payment: p })}>
-                    {p === 'cash' ? t(L('Naqd, qabulda', 'Наличными', 'Cash on delivery')) : t(L('Karta, qabulda', 'Картой при получении', 'Card on delivery'))}
+              <div className={`grid gap-2 ${paymentOptions.length > 2 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                {paymentOptions.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    className={`chip min-h-11 ${paymentOptions.length > 2 ? 'group h-auto flex-col items-start gap-0.5 whitespace-normal rounded-[10px] px-4 py-2.5 text-left' : 'h-11 justify-center'}`}
+                    aria-pressed={payment === p}
+                    onClick={() => setForm({ ...form, payment: p })}
+                  >
+                    <span>
+                      {p === 'qr'
+                        ? t(L('Hozir, QR / karta raqami orqali', 'Сейчас, по QR / номеру карты', 'Now, by QR / card number'))
+                        : p === 'cash'
+                          ? t(L('Naqd, qabulda', 'Наличными', 'Cash on delivery'))
+                          : t(L('Karta, qabulda', 'Картой при получении', 'Card on delivery'))}
+                    </span>
+                    {paymentOptions.length > 2 && (
+                      <span className="text-[12.5px] font-normal text-graphite group-aria-pressed:text-white/75">
+                        {p === 'qr'
+                          ? t(L('Click, Payme, Uzum yoki bank ilovasidan o‘tkazasiz. Karta ma’lumotingiz bizga kerak emas.', 'Переводите из Click, Payme, Uzum или банка. Данные вашей карты нам не нужны.', 'Transfer from Click, Payme, Uzum or your bank app. We never need your card details.'))
+                          : p === 'cash'
+                            ? t(L('Kuryerga yoki do‘konda', 'Курьеру или в магазине', 'To the courier or in store'))
+                            : t(L('Terminal orqali', 'Через терминал', 'By card terminal'))}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -344,6 +372,13 @@ export function CartDrawer() {
 
       {step === 'done' && done && (
         <div className="px-5 py-8 sm:px-6">
+          {done.result.orders
+            .filter((o) => o.payToken)
+            .map((o) => (
+              <div key={`pay-${o.number}`} className="mb-8 border-b border-line pb-8">
+                <PaymentPanel number={o.number} token={o.payToken!} />
+              </div>
+            ))}
           <div className="h-1.5 w-16 rounded-full bg-tape" aria-hidden="true" />
           <ul className="mt-6 space-y-2 text-[18px] leading-relaxed">
             {done.result.orders.map((o) => (

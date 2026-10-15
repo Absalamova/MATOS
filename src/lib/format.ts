@@ -77,4 +77,13 @@ export function formatDate(iso: string, lang: Language) {
   return d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+/** "16-oktabr, 14:30" — day, month and time, for deadlines. */
+export function formatDayTime(iso: string, lang: Language) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  if (lang === 'uz') return `${d.getDate()}-${UZ_MONTHS[d.getMonth()]}, ${hm}`;
+  return `${d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-GB', { day: 'numeric', month: 'long' })}, ${hm}`;
+}
+
 export { displayPhone, formatPhoneInput as formatPhone, isValidPhone, normalizePhone, telHref } from '../../shared/phone';

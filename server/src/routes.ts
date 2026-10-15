@@ -17,6 +17,8 @@ import * as reports from './modules/reports.ts';
 import { getSettings, saveSettings, settingsSchema } from './modules/settings.ts';
 import { catalogRevision } from './modules/revision.ts';
 import { MAX_UPLOAD_BYTES, saveUpload } from './modules/uploads.ts';
+import * as payments from './modules/payments.ts';
+import { verifyAdminPassword } from './modules/auth.ts';
 
 export interface Deps {
   db: Db;
@@ -61,7 +63,8 @@ export function buildRouter({ db, config, notifier, sms, startedAt }: Deps) {
   r.get('/api/catalog', (ctx) => {
     if (!cache || cache.rev !== catalogRevision()) {
       const settings = getSettings(db);
-      const body: CatalogResponse = { fabrics: catalog.listPublicFabrics(db, settings, pub), settings, updatedAt: new Date().toISOString() };
+      const qrPayment = payments.receiverReady(payments.getReceiver(db));
+      const body: CatalogResponse = { fabrics: catalog.listPublicFabrics(db, settings, pub), settings: { ...settings, qrPayment }, updatedAt: new Date().toISOString() };
       cache = { rev: catalogRevision(), body, etag: `"${shortHash(JSON.stringify({ ...body, updatedAt: '' }))}"` };
     }
     const headers = { ETag: cache.etag, 'Cache-Control': 'no-cache' };
@@ -83,8 +86,32 @@ export function buildRouter({ db, config, notifier, sms, startedAt }: Deps) {
     const input = parse(orders.checkoutSchema, ctx.body);
     const key = ctx.header('idempotency-key').trim();
     if (key && !/^[A-Za-z0-9_-]{8,80}$/.test(key)) throw badRequest('Idempotency-Key noto‘g‘ri');
-    const result = orders.checkout({ db, settings: getSettings(db), notifier, adminUrl: config.adminUrl }, input, user?.id ?? null, key || null);
+    const result = orders.checkout(
+      { db, settings: getSettings(db), receiver: payments.getReceiver(db), notifier, adminUrl: config.adminUrl },
+      input,
+      user?.id ?? null,
+      key || null,
+    );
     return new Reply(201, result);
+  });
+
+  /* ───────────── QR payment page ─────────────
+     POST, not GET: the pay token travels in the body, so it never lands in access logs or browser history. */
+
+  const noStore = { 'Cache-Control': 'no-store' };
+
+  r.post('/api/pay/lookup', (ctx) => {
+    const input = parse(payments.claimSchema, ctx.body);
+    const user = input.token ? null : auth.currentUser(db, ctx, userTtl);
+    if (!input.token && !user) throw notFound('To‘lov havolasi noto‘g‘ri yoki eskirgan', 'pay_not_found');
+    const pay = input.token ? payments.payInfoByToken(db, input.number, input.token) : payments.payInfoForUser(db, input.number, user!.id);
+    return new Reply(200, { pay }, noStore);
+  });
+
+  r.post('/api/pay/claim', (ctx) => {
+    const input = parse(payments.claimSchema, ctx.body);
+    const user = input.token ? null : auth.currentUser(db, ctx, userTtl);
+    return new Reply(200, { pay: payments.claimPayment(db, input, user?.id ?? null, notifier, config.adminUrl) }, noStore);
   });
 
   /* ───────────── Shopper account ───────────── */
@@ -215,13 +242,23 @@ export function buildRouter({ db, config, notifier, sms, startedAt }: Deps) {
     const input = parse(
       v.object({
         status: v.enum(['new', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled'] as const).optional(),
+        paymentStatus: v.enum(['unpaid', 'paid', 'refunded'] as const).optional(),
         adminNote: v.string({ min: 0, max: 1000 }).nullable(),
         note: v.string({ max: 300 }).optional(),
       }),
       ctx.body ?? {},
     );
     const body = (ctx.body ?? {}) as Record<string, unknown>;
-    return { order: orders.updateOrder(db, idParam(ctx), { status: input.status, note: input.note, adminNote: 'adminNote' in body ? input.adminNote : undefined }, a.name, pub) };
+    return {
+      order: orders.updateOrder(
+        db,
+        idParam(ctx),
+        { status: input.status, paymentStatus: input.paymentStatus, note: input.note, adminNote: 'adminNote' in body ? input.adminNote : undefined },
+        a.name,
+        pub,
+        a.role,
+      ),
+    };
   });
 
   /* ───────────── Admin: tailoring ───────────── */
@@ -337,6 +374,19 @@ export function buildRouter({ db, config, notifier, sms, startedAt }: Deps) {
   r.put('/api/admin/settings', (ctx) => {
     admin(ctx);
     return { settings: saveSettings(db, parse(settingsSchema, ctx.body)) };
+  });
+
+  r.get('/api/admin/payment', (ctx) => {
+    const a = admin(ctx);
+    return new Reply(200, { receiver: payments.receiverFor(payments.getReceiver(db), a.role) }, noStore);
+  });
+
+  r.put('/api/admin/payment', async (ctx) => {
+    const a = auth.requireAdmin(db, ctx, 'owner');
+    const { password, ...input } = parse(payments.receiverSchema, ctx.body);
+    await verifyAdminPassword(db, a.id, password);
+    const saved = payments.saveReceiver(db, input, a, notifier);
+    return new Reply(200, { receiver: payments.receiverFor(saved, a.role) }, noStore);
   });
 
   r.get('/api/admin/staff', (ctx) => {

@@ -7,7 +7,8 @@ import { findGarment } from '../../../shared/garments';
 import { api, errorMessage, photoUrl } from '../api';
 import { downloadBlob, go, money, num, useDebounced, useLoad, when, type Route } from '../lib';
 import { useStats } from '../Layout';
-import { Chips, Dl, Empty, ErrorBox, OrderBadge, Overlay, PageHeader, Pager, SearchBox, Skeleton, useUi } from '../ui';
+import { Chips, Dl, Empty, ErrorBox, OrderBadge, Overlay, PageHeader, Pager, PaymentBadge, SearchBox, Skeleton, useUi } from '../ui';
+import { PAYMENT_STATUS_ADMIN } from '../../../shared/payment';
 
 const COPY: Record<OrderKind, { title: string; path: string; sub: string; search: string; empty: string }> = {
   fabric: { title: 'Buyurtmalar', path: 'orders', sub: 'Saytdan kelgan mato buyurtmalari.', search: 'Raqam, ism yoki telefon', empty: 'Saytdan buyurtma kelishi bilan shu yerda ko‘rinadi.' },
@@ -113,7 +114,7 @@ export function Orders({ kind, route }: { kind: OrderKind; route: Route }) {
                 {data.items.map((o) => (
                   <tr
                     key={o.id}
-                    className={`cursor-pointer border-t border-line hover:bg-mist ${o.status === 'new' ? 'needs-action' : ''}`}
+                    className={`cursor-pointer border-t border-line hover:bg-mist ${o.status === 'new' || o.paymentStatus === 'claimed' ? 'needs-action' : ''}`}
                     onClick={() => go(`${copy.path}/${o.id}`, { query: { status, q, page: page > 1 ? page : undefined } })}
                   >
                     <td className="px-4 py-3 font-medium">
@@ -138,7 +139,10 @@ export function Orders({ kind, route }: { kind: OrderKind; route: Route }) {
                     {kind === 'fabric' && <td className="tabular whitespace-nowrap px-4 py-3 text-right">{money(o.totalUZS)}</td>}
                     <td className="whitespace-nowrap px-4 py-3 text-graphite">{when(o.createdAt)}</td>
                     <td className="px-4 py-3">
-                      <OrderBadge status={o.status} />
+                      <div className="flex flex-wrap gap-1">
+                        <OrderBadge status={o.status} />
+                        {o.status !== 'cancelled' && <PaymentBadge status={o.paymentStatus} />}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -147,11 +151,14 @@ export function Orders({ kind, route }: { kind: OrderKind; route: Route }) {
 
             <ul className={`md:hidden ${list.loading ? 'opacity-60' : ''}`}>
               {data.items.map((o) => (
-                <li key={o.id} className={`border-t border-line first:border-0 ${o.status === 'new' ? 'needs-action' : ''}`}>
+                <li key={o.id} className={`border-t border-line first:border-0 ${o.status === 'new' || o.paymentStatus === 'claimed' ? 'needs-action' : ''}`}>
                   <a href={`#/${copy.path}/${o.id}`} className="block px-4 py-3.5 active:bg-mist">
                     <div className="flex items-center justify-between gap-3">
                       <span className="font-medium">{o.number}</span>
-                      <OrderBadge status={o.status} />
+                      <span className="flex flex-wrap justify-end gap-1">
+                        {o.status !== 'cancelled' && <PaymentBadge status={o.paymentStatus} />}
+                        <OrderBadge status={o.status} />
+                      </span>
                     </div>
                     <div className="mt-1 truncate">
                       {o.customerName} · <span className="tabular text-graphite">{displayPhone(o.customerPhone)}</span>
@@ -201,7 +208,7 @@ function OrderDrawer({ id, kind, onClose, onChanged }: { id: number | null; kind
       .catch(setError);
   }, [id]);
 
-  const update = async (patch: { status?: OrderStatus; adminNote?: string | null }, okText: string) => {
+  const update = async (patch: { status?: OrderStatus; paymentStatus?: 'unpaid' | 'paid' | 'refunded'; adminNote?: string | null }, okText: string) => {
     if (!order) return;
     setBusy(true);
     try {
@@ -218,6 +225,18 @@ function OrderDrawer({ id, kind, onClose, onChanged }: { id: number | null; kind
   };
 
   const step = order ? NEXT[order.kind][order.status] : undefined;
+  // A QR order isn't handed to the courier until staff have seen the money arrive.
+  const waitsForMoney = !!order && order.payment === 'qr' && order.paymentStatus !== 'paid' && (step?.to === 'shipped' || step?.to === 'delivered');
+
+  const confirmPaid = async () => {
+    if (!order?.qr) return;
+    const ok = await confirm({
+      title: `${money(order.totalUZS)} kartaga tushdimi?`,
+      text: `Bank ilovasida ${order.qr.payTo} kartasiga aynan ${money(order.totalUZS)} kelganini ko‘ring${order.qr.payerCardLast4 ? ` (to‘lovchi karta •••• ${order.qr.payerCardLast4})` : ''}. Mijozning “to‘ladim” degani yoki chek skrinshoti yetarli emas — skrinshotni soxtalashtirish oson.`,
+      confirm: 'Ha, pul tushdi',
+    });
+    if (ok) update({ paymentStatus: 'paid' }, 'To‘lov tasdiqlandi');
+  };
   const flow = order ? ORDER_FLOW[order.kind] : [];
   const reached = order ? flow.indexOf(order.status) : -1;
 
@@ -225,7 +244,10 @@ function OrderDrawer({ id, kind, onClose, onChanged }: { id: number | null; kind
     if (!order) return;
     const ok = await confirm({
       title: `${order.number} bekor qilinsinmi?`,
-      text: order.kind === 'fabric' ? 'Buyurtmadagi metraj omborga qaytariladi. Keyin qayta ochish mumkin.' : 'So‘rov bekor qilinadi. Keyin qayta ochish mumkin.',
+      text:
+        order.kind === 'fabric'
+          ? `Buyurtmadagi metraj omborga qaytariladi. Keyin qayta ochish mumkin.${order.paymentStatus === 'paid' ? ' Mijoz pul to‘lagan — pulni qaytarib, keyin “Pul qaytarildi” deb belgilang.' : ''}`
+          : 'So‘rov bekor qilinadi. Keyin qayta ochish mumkin.',
       confirm: 'Bekor qilish',
       danger: true,
     });
@@ -261,9 +283,14 @@ function OrderDrawer({ id, kind, onClose, onChanged }: { id: number | null; kind
                     Bekor qilish
                   </button>
                 )}
-                {step && (
+                {step && !waitsForMoney && (
                   <button type="button" className="btn btn-primary" disabled={busy} onClick={() => update({ status: step.to }, `Holat: ${ORDER_STATUS_LABEL[step.to].uz}`)}>
                     {step.label}
+                  </button>
+                )}
+                {waitsForMoney && order.paymentStatus !== 'refunded' && (
+                  <button type="button" className="btn btn-primary" disabled={busy} onClick={confirmPaid}>
+                    Pul tushdi — tasdiqlash
                   </button>
                 )}
               </>
@@ -289,6 +316,45 @@ function OrderDrawer({ id, kind, onClose, onChanged }: { id: number | null; kind
             ))}
           </ol>
           {order.status === 'cancelled' && <p className="rounded-lg bg-well px-3 py-2 text-[13px] text-graphite">Bu buyurtma bekor qilingan.</p>}
+
+          {order.qr && (
+            <section>
+              <h3 className="mb-2 text-[13px] font-semibold text-graphite">QR to‘lov</h3>
+              <div className={`space-y-3 rounded-xl border p-4 ${order.paymentStatus === 'claimed' ? 'border-danger/40 bg-danger-soft/40' : 'border-line'}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium">{PAYMENT_STATUS_ADMIN[order.paymentStatus ?? 'unpaid']}</span>
+                  <span className="tabular font-semibold">{money(order.totalUZS)}</span>
+                </div>
+                <Dl
+                  rows={[
+                    ['Qaysi kartaga', order.qr.payTo],
+                    ['Mijoz “to‘ladim” dedi', order.qr.claimedAt ? when(order.qr.claimedAt) : ''],
+                    ['To‘lovchi karta', order.qr.payerCardLast4 ? `•••• ${order.qr.payerCardLast4}` : ''],
+                    ['Tasdiqladi', order.qr.paidAt ? `${order.qr.paidBy ?? ''} · ${when(order.qr.paidAt)}` : ''],
+                    ['To‘lov muddati', order.payDeadline ? `${when(order.payDeadline)} gacha, keyin avtomatik bekor bo‘ladi` : ''],
+                  ]}
+                />
+                <div className="flex flex-wrap gap-2">
+                  {(order.paymentStatus === 'unpaid' || order.paymentStatus === 'claimed') && order.status !== 'cancelled' && (
+                    <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={confirmPaid}>
+                      Pul tushdi — tasdiqlash
+                    </button>
+                  )}
+                  {order.paymentStatus === 'claimed' && (
+                    <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => update({ paymentStatus: 'unpaid' }, 'To‘lanmagan deb belgilandi')}>
+                      Pul kelmagan
+                    </button>
+                  )}
+                  {order.paymentStatus === 'paid' && order.status === 'cancelled' && (
+                    <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => update({ paymentStatus: 'refunded' }, 'Pul qaytarildi deb belgilandi')}>
+                      Pul qaytarildi
+                    </button>
+                  )}
+                </div>
+                {waitsForMoney && <p className="text-[12.5px] text-graphite">To‘lov tasdiqlanmaguncha buyurtmani kuryerga berib bo‘lmaydi.</p>}
+              </div>
+            </section>
+          )}
 
           <section>
             <h3 className="mb-2 text-[13px] font-semibold text-graphite">Mijoz</h3>
@@ -322,7 +388,7 @@ function OrderDrawer({ id, kind, onClose, onChanged }: { id: number | null; kind
                 ['Usul', order.delivery.method === 'pickup' ? 'Olib ketish (showroom)' : 'Kuryer'],
                 ['Shahar', order.delivery.city ?? ''],
                 ['Manzil', order.delivery.address ?? ''],
-                ['To‘lov', order.payment === 'card' ? 'Karta, qabulda' : order.payment === 'cash' ? 'Naqd, qabulda' : ''],
+                ['To‘lov', order.payment === 'qr' ? 'Oldindan, QR / karta raqamiga o‘tkazma' : order.payment === 'card' ? 'Karta, qabulda' : order.payment === 'cash' ? 'Naqd, qabulda' : ''],
                 ['Mijoz izohi', order.note ?? ''],
                 ['Vaqt', when(order.createdAt)],
               ]}
